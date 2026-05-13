@@ -457,7 +457,7 @@
       }
 
       function validateName(value) {
-        if (!value || !value.trim()) return "Please enter your full name.";
+        if (!value || !value.trim()) return "Please enter your name.";
         return "";
       }
 
