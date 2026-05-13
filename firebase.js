@@ -25,6 +25,7 @@ const COLLECTIONS = {
   slots: "slots",
   bookingCounts: "bookingCounts",
   bookings: "bookings",
+  students: "students",
 };
 
 export const app = initializeApp(firebaseConfig);
@@ -53,6 +54,13 @@ function bookingDocId(rec, index) {
       index,
     ].join("\t")
   );
+}
+
+function studentDocId(student, index) {
+  if (student && student.id) return String(student.id);
+  if (student && student.emailNorm) return encodeURIComponent(String(student.emailNorm));
+  if (student && student.email) return encodeURIComponent(String(student.email).trim().toLowerCase());
+  return "student-" + index;
 }
 
 function splitBookingKey(key) {
@@ -121,6 +129,17 @@ export async function fetchCloudBookings() {
     })
     .sort(function (a, b) {
       return String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
+    });
+}
+
+export async function fetchCloudStudents() {
+  var snap = await getDocs(collection(db, COLLECTIONS.students));
+  return snap.docs
+    .map(function (d) {
+      return d.data();
+    })
+    .sort(function (a, b) {
+      return String(a.name || "").localeCompare(String(b.name || ""));
     });
 }
 
@@ -212,4 +231,26 @@ export function syncBookingsToCloud(bookings) {
       return { id: bookingDocId(rec, index), data: stripPrivateFields(rec) };
     })
   );
+}
+
+export function syncStudentsToCloud(students) {
+  return replaceCollection(
+    COLLECTIONS.students,
+    (students || []).map(function (student, index) {
+      return { id: studentDocId(student, index), data: stripPrivateFields(student) };
+    })
+  );
+}
+
+export function subscribeStudents(onChange) {
+  return onSnapshot(collection(db, COLLECTIONS.students), function (snap) {
+    var students = snap.docs
+      .map(function (d) {
+        return d.data();
+      })
+      .sort(function (a, b) {
+        return String(a.name || "").localeCompare(String(b.name || ""));
+      });
+    onChange(students);
+  });
 }
