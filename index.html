@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interview Booking</title>
+  <link rel="stylesheet" href="index.css" />
+</head>
+<body>
+  <div class="page">
+    <nav class="nav-row" aria-label="Site">
+      <a href="admin.html">Admin panel</a>
+    </nav>
+    <div class="card">
+      <header class="card-header">
+        <h1>Book Your Interview</h1>
+        <p>
+          Pick a date, choose one available time slot, then confirm. Each email may book up to 2 sessions total, and at
+          most one per calendar day.
+        </p>
+      </header>
+
+      <form id="booking-form" novalidate>
+        <div class="booking-layout">
+          <div class="booking-block booking-block--contact">
+        <div class="form-group" data-field="name">
+          <label for="full-name">Name</label>
+          <input type="text" id="full-name" name="fullName" autocomplete="name" placeholder="Jane Doe" />
+          <span class="error-text" role="alert"></span>
+        </div>
+
+        <div class="form-group" data-field="email">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" autocomplete="email" placeholder="you@example.com" />
+          <span class="error-text" role="alert"></span>
+        </div>
+
+        <div class="form-group form-group--quota" data-field="bookingQuota">
+          <span class="error-text" role="alert"></span>
+        </div>
+
+        <div class="form-group" data-field="phone">
+          <label for="phone">Phone Number</label>
+          <input
+            type="tel"
+            id="phone"
+            name="phone"
+            autocomplete="tel"
+            inputmode="numeric"
+            maxlength="10"
+            placeholder="1234567890"
+          />
+          <span class="error-text" role="alert"></span>
+        </div>
+          </div>
+
+          <div class="booking-block booking-block--schedule">
+        <div class="form-group" data-field="date">
+          <label id="cal-label">Interview date</label>
+          <p class="hint" id="cal-hint">Green = spots left. Red = sessions exist but every slot is full (5 bookings each). Grey = no sessions.</p>
+          <div
+            class="calendar"
+            id="calendar"
+            role="application"
+            aria-labelledby="cal-label"
+            aria-describedby="cal-hint"
+          >
+            <div class="cal-nav">
+              <button type="button" class="cal-prev" aria-label="Previous month">‹</button>
+              <h2 class="cal-title" id="cal-month-title"></h2>
+              <button type="button" class="cal-next" aria-label="Next month">›</button>
+            </div>
+            <div class="cal-legend">
+              <span><i class="closed"></i> No session</span>
+              <span><i class="open"></i> Open</span>
+              <span><i class="full"></i> Full (5/5)</span>
+            </div>
+            <div class="cal-weekdays" aria-hidden="true">
+              <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+            </div>
+            <div class="cal-grid" id="cal-grid"></div>
+          </div>
+          <input type="hidden" id="date" name="date" value="" />
+          <span class="error-text" role="alert"></span>
+        </div>
+
+        <div class="form-group" data-field="section" id="section-field-group">
+          <label>Time slots for this day</label>
+          <p class="hint" id="section-hint">
+            Pick one time window. Each option shows spots used out of 5.
+          </p>
+          <div class="session-shell">
+            <div class="section-list" id="section-list" aria-labelledby="section-hint"></div>
+            <div class="session-empty" id="session-empty-state" role="status" hidden>
+              <p id="session-empty-msg"></p>
+            </div>
+          </div>
+          <span class="error-text" role="alert"></span>
+        </div>
+
+        <div class="form-group booking-time-field" data-field="time" id="time-field-group">
+          <label for="time-slot">Time (auto)</label>
+          <input type="hidden" id="time-slot" name="timeSlot" value="" />
+          <span class="error-text" role="alert"></span>
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="btn btn-primary" id="submit-btn" disabled>Confirm Booking</button>
+        </div>
+          </div>
+        </div>
+      </form>
+
+      <div class="success-banner" id="success-banner" role="status" aria-live="polite"></div>
+    </div>
+
+    <div class="card cancel-card">
+      <h2>Cancel a Booking</h2>
+      <p class="hint">
+        Enter the same email and phone number used to book. Cancellations are allowed only at least 24 hours before the
+        booked start time.
+      </p>
+      <form id="cancel-form" novalidate>
+        <div class="cancel-layout">
+          <div class="form-group">
+            <label for="cancel-email">Email</label>
+            <input type="email" id="cancel-email" autocomplete="email" placeholder="you@example.com" />
+          </div>
+          <div class="form-group">
+            <label for="cancel-phone">Phone Number</label>
+            <input
+              type="tel"
+              id="cancel-phone"
+              autocomplete="tel"
+              inputmode="numeric"
+              maxlength="10"
+              placeholder="1234567890"
+            />
+          </div>
+        </div>
+        <button type="submit" class="btn btn-ghost">Find My Bookings</button>
+      </form>
+      <div class="success-banner" id="cancel-banner" role="status" aria-live="polite"></div>
+      <div class="cancel-list" id="cancel-list"></div>
+    </div>
+  </div>
+
+  <script type="module" src="index.js"></script>
+</body>
+</html>

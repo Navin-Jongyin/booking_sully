@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interview slots — Admin</title>
+  <link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+  <div class="wrap">
+    <div class="card login-card" id="admin-login-card">
+      <h1>Admin Login</h1>
+      <p class="hint">Enter the admin username and password stored in Firebase.</p>
+      <form id="admin-login-form" novalidate>
+        <div class="row">
+          <label for="admin-username">Username</label>
+          <input type="text" id="admin-username" autocomplete="username" />
+        </div>
+        <div class="row">
+          <label for="admin-password">Password</label>
+          <input type="password" id="admin-password" autocomplete="current-password" />
+        </div>
+        <button type="submit" class="btn-primary">Login</button>
+        <p class="msg" id="admin-login-msg" role="status"></p>
+      </form>
+    </div>
+
+    <div id="admin-content" hidden>
+      <div class="top">
+        <h1>Admin — interview slots</h1>
+        <div class="top-actions">
+          <a href="index.html">← Booking page</a>
+          <button type="button" class="btn-ghost btn-small" id="admin-logout">Logout</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Add free slot</h2>
+        <p class="hint">
+          Choose a date on the calendar to see what is already published, add more session windows, then save. Each
+          session allows up to 5 bookings on the public page (same browser).
+        </p>
+
+      <form id="add-form" novalidate>
+        <input type="hidden" id="slot-date" name="slotDate" value="" />
+
+        <div class="admin-add-grid">
+          <div class="admin-cal-col">
+            <label id="admin-cal-label">Calendar</label>
+            <div class="calendar" id="admin-calendar" role="application" aria-labelledby="admin-cal-label">
+              <div class="cal-nav">
+                <button type="button" class="cal-prev" aria-label="Previous month">‹</button>
+                <h2 class="cal-title" id="admin-cal-month"></h2>
+                <button type="button" class="cal-next" aria-label="Next month">›</button>
+              </div>
+              <div class="cal-legend">
+                <span><i class="pub"></i> Already has slots</span>
+              </div>
+              <div class="cal-weekdays" aria-hidden="true">
+                <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+              </div>
+              <div class="cal-grid" id="admin-cal-grid"></div>
+            </div>
+          </div>
+
+          <div class="admin-form-col">
+            <p class="selected-date-display" id="selected-date-display" aria-live="polite">Select a date on the calendar.</p>
+
+            <div class="row" id="published-day-section">
+              <label id="published-day-label">Published for this day</label>
+              <p class="hint" style="margin-top: 0; margin-bottom: 8px">
+                Sessions saved for the selected date (this browser). Remove one with ×, or clear the whole day below.
+              </p>
+              <div class="published-slots-strip" id="published-slots-for-day" aria-labelledby="published-day-label"></div>
+              <p class="hint published-day-empty" id="published-day-empty" hidden></p>
+              <div class="btn-row" style="margin-top: 8px">
+                <button type="button" class="btn-danger" id="btn-clear-day" hidden>
+                  Remove all sessions this day
+                </button>
+              </div>
+            </div>
+
+            <div class="row">
+              <span id="add-session-label">Add a session (start and end)</span>
+              <p class="hint" style="margin-top: 0; margin-bottom: 8px">
+                Each entry is one session window (24-hour). End must be after start. Add as many as you need, then publish with the blue button.
+              </p>
+              <div class="add-time-row" role="group" aria-labelledby="add-session-label">
+                <input type="time" id="add-time-start" step="300" value="09:00" aria-label="Session start time" />
+                <span class="add-time-to" aria-hidden="true">to</span>
+                <input type="time" id="add-time-end" step="300" value="10:00" aria-label="Session end time" />
+                <button type="button" class="btn-ghost" id="btn-add-one-time">Add session</button>
+              </div>
+            </div>
+
+            <div class="row">
+              <label>Sessions for this date (remove with ×)</label>
+              <div class="chip-strip" id="pending-chips" aria-label="Pending sessions"></div>
+            </div>
+
+            <div class="btn-row">
+              <button type="submit" class="btn-primary">Add to calendar</button>
+              <button type="button" class="btn-ghost" id="btn-clear-pending">Clear sessions</button>
+            </div>
+          </div>
+        </div>
+
+        <p class="msg" id="form-msg" role="status"></p>
+      </form>
+    </div>
+
+      <div class="card" id="booking-activity-card">
+        <h2>Booking data by day</h2>
+        <p class="hint">
+          For each time window: how many of 5 spots are used, and who booked (name and email). Tabs include days that
+          only have stored bookings.
+        </p>
+        <div class="booking-tabs" role="tablist" aria-label="Bookings by day" id="booking-tabs"></div>
+        <div id="booking-panel-content" class="booking-panel-content" role="tabpanel" aria-live="polite"></div>
+        <p class="hint" id="booking-empty-all" hidden>No published days yet. Booking counts will show here after you add sessions.</p>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="admin.js"></script>
+</body>
+</html>
