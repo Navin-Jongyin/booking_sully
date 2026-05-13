@@ -117,8 +117,8 @@
     <div class="card cancel-card">
       <h2>Cancel a Booking</h2>
       <p class="hint">
-        Enter the same email and phone number used to book. Cancellations are allowed only at least 24 hours before the
-        booked start time.
+        Enter the same email used to book. Phone number is optional and can narrow the search. Cancellations are allowed
+        only at least 24 hours before the booked start time.
       </p>
       <form id="cancel-form" novalidate>
         <div class="cancel-layout">
@@ -127,7 +127,7 @@
             <input type="email" id="cancel-email" autocomplete="email" placeholder="you@example.com" />
           </div>
           <div class="form-group">
-            <label for="cancel-phone">Phone Number</label>
+            <label for="cancel-phone">Phone Number (optional)</label>
             <input
               type="tel"
               id="cancel-phone"

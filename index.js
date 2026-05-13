@@ -174,7 +174,7 @@
             var rec = item.record;
             var recEmail = String(rec.emailNorm || rec.email || "").trim().toLowerCase();
             var recPhone = digitsOnly(String(rec.phone || ""));
-            return recEmail === normEmail && recPhone === phoneDigits;
+            return recEmail === normEmail && (!phoneDigits || recPhone === phoneDigits);
           });
       }
 
@@ -910,8 +910,8 @@
           showCancelMessage("Enter the email used for the booking.", "error");
           return;
         }
-        if (digitsOnly(phone).length !== 10) {
-          showCancelMessage("Enter the 10-digit phone number used for the booking.", "error");
+        if (phone && digitsOnly(phone).length !== 10) {
+          showCancelMessage("Phone is optional, but if entered it must be 10 digits.", "error");
           return;
         }
 
