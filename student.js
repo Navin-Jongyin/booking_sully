@@ -36,6 +36,34 @@ import {
     return String(str || "").replace(/\D/g, "");
   }
 
+  function normalizeEmail(value) {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function studentEmailKey(student) {
+    return normalizeEmail((student && (student.emailNorm || student.email)) || "");
+  }
+
+  function cleanStudents(students) {
+    var seen = {};
+    var clean = [];
+    (students || []).forEach(function (student) {
+      var emailNorm = studentEmailKey(student);
+      if (!emailNorm || seen[emailNorm]) return;
+      seen[emailNorm] = true;
+      clean.push({
+        id: student.id || "student-" + Date.now() + "-" + Math.floor(Math.random() * 100000),
+        name: String(student.name || "").trim(),
+        email: String(student.email || emailNorm).trim(),
+        emailNorm: emailNorm,
+        phone: digitsOnly(student.phone),
+        createdAt: student.createdAt || new Date().toISOString(),
+        updatedAt: student.updatedAt || new Date().toISOString(),
+      });
+    });
+    return clean;
+  }
+
   function loadStudents() {
     try {
       var raw = localStorage.getItem(STUDENTS_KEY);
@@ -48,28 +76,26 @@ import {
   }
 
   function saveStudents(students) {
-    var clean = (students || []).map(function (student) {
-      return {
-        id: student.id,
-        name: student.name,
-        email: student.email,
-        emailNorm: student.emailNorm,
-        phone: student.phone,
-        createdAt: student.createdAt,
-        updatedAt: student.updatedAt,
-      };
-    });
+    var clean = cleanStudents(students);
     localStorage.setItem(STUDENTS_KEY, JSON.stringify(clean));
     syncStudentsToCloud(clean).catch(function (err) {
       console.error("Could not sync students to Firebase", err);
     });
     renderStudents(clean);
+    updateSubmitState();
   }
 
   function applyCloudStudents(students) {
     if (!students) return;
-    localStorage.setItem(STUDENTS_KEY, JSON.stringify(students));
-    renderStudents(students);
+    var clean = cleanStudents(students);
+    localStorage.setItem(STUDENTS_KEY, JSON.stringify(clean));
+    renderStudents(clean);
+    updateSubmitState();
+    if (clean.length !== students.length) {
+      syncStudentsToCloud(clean).catch(function (err) {
+        console.error("Could not remove duplicate students from Firebase", err);
+      });
+    }
   }
 
   function initFirebaseSync() {
@@ -111,6 +137,7 @@ import {
   function validateEmail(value) {
     if (!value || !value.trim()) return "Please enter the student's email.";
     if (!emailPattern.test(value.trim())) return "Please enter a valid email address.";
+    if (studentExistsByEmail(value)) return "This email is already in the student list.";
     return "";
   }
 
@@ -210,7 +237,7 @@ import {
         if (!confirm("Delete " + (student.name || student.email || "this student") + "?")) return;
         saveStudents(
           loadStudents().filter(function (item) {
-            return (item.emailNorm || item.email) !== (student.emailNorm || student.email);
+            return studentEmailKey(item) !== studentEmailKey(student);
           })
         );
         showMessage("Student deleted.", "ok");
@@ -221,27 +248,20 @@ import {
     });
   }
 
-  function upsertStudent(student) {
+  function studentExistsByEmail(email) {
+    var emailNorm = normalizeEmail(email);
+    return loadStudents().some(function (student) {
+      return studentEmailKey(student) === emailNorm;
+    });
+  }
+
+  function addStudent(student) {
     var students = loadStudents();
-    var existingIndex = -1;
-    for (var i = 0; i < students.length; i++) {
-      if (students[i].emailNorm === student.emailNorm) {
-        existingIndex = i;
-        break;
-      }
-    }
-
-    if (existingIndex >= 0) {
-      student.id = students[existingIndex].id;
-      student.createdAt = students[existingIndex].createdAt || student.createdAt;
-      students[existingIndex] = student;
-      saveStudents(students);
-      return "Updated " + student.email + ".";
-    }
-
+    if (studentExistsByEmail(student.emailNorm)) return false;
+    student.id = student.emailNorm;
     students.push(student);
     saveStudents(students);
-    return "Added " + student.email + ".";
+    return true;
   }
 
   fields.phone.el.addEventListener("input", function () {
@@ -276,17 +296,30 @@ import {
     if (!allOk) return;
 
     var email = fields.email.el.value.trim();
+    var emailNorm = normalizeEmail(email);
+    if (studentExistsByEmail(emailNorm)) {
+      setFieldError("email", "This email is already in the student list.");
+      updateSubmitState();
+      return;
+    }
+
     var student = {
-      id: "student-" + Date.now() + "-" + Math.floor(Math.random() * 100000),
+      id: emailNorm,
       name: fields.name.el.value.trim(),
       email: email,
-      emailNorm: email.toLowerCase(),
+      emailNorm: emailNorm,
       phone: digitsOnly(fields.phone.el.value),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
-    showMessage(upsertStudent(student), "ok");
+    if (!addStudent(student)) {
+      setFieldError("email", "This email is already in the student list.");
+      updateSubmitState();
+      return;
+    }
+
+    showMessage("Added " + student.email + ".", "ok");
     form.reset();
     Object.keys(fields).forEach(function (key) {
       setFieldError(key, "");

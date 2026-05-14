@@ -57,9 +57,9 @@ function bookingDocId(rec, index) {
 }
 
 function studentDocId(student, index) {
-  if (student && student.id) return String(student.id);
   if (student && student.emailNorm) return encodeURIComponent(String(student.emailNorm));
   if (student && student.email) return encodeURIComponent(String(student.email).trim().toLowerCase());
+  if (student && student.id) return String(student.id);
   return "student-" + index;
 }
 

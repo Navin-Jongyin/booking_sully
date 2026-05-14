@@ -1,6 +1,8 @@
     import {
+      fetchCloudStudents,
       loadCloudState,
       subscribeCloudState,
+      subscribeStudents,
       syncBookingCountsToCloud,
       syncBookingsToCloud,
       syncSlotsToCloud,
@@ -29,6 +31,9 @@
       var viewMonth;
       var selectedDateISO = "";
       var selectedSectionId = "";
+      var registeredStudentEmails = {};
+      var studentEmailsLoaded = false;
+      var studentEmailsLoadFailed = false;
 
       /** Same key as admin.html — slots persist in this browser (localStorage). */
       var STORAGE_KEY = "ib_admin_slots_v1";
@@ -139,6 +144,39 @@
 
         subscribeCloudState(function (state) {
           applyCloudState(state);
+        });
+      }
+
+      function setRegisteredStudents(students) {
+        registeredStudentEmails = {};
+        (students || []).forEach(function (student) {
+          var email = String((student && (student.emailNorm || student.email)) || "").trim().toLowerCase();
+          if (email) registeredStudentEmails[email] = true;
+        });
+        studentEmailsLoaded = true;
+        studentEmailsLoadFailed = false;
+        if (fields && fields.email && fields.email.el && fields.email.el.value.trim()) {
+          validateField("email", true);
+          validateField("bookingQuota", true);
+        }
+        updateSubmitState();
+      }
+
+      function initStudentEmailValidation() {
+        fetchCloudStudents()
+          .then(function (students) {
+            setRegisteredStudents(students);
+          })
+          .catch(function (err) {
+            console.error("Could not load registered students", err);
+            studentEmailsLoadFailed = true;
+            studentEmailsLoaded = false;
+            if (fields && fields.email && fields.email.el && fields.email.el.value.trim()) validateField("email", true);
+            updateSubmitState();
+          });
+
+        subscribeStudents(function (students) {
+          setRegisteredStudents(students);
         });
       }
 
@@ -484,6 +522,10 @@
       function validateEmail(value) {
         if (!value || !value.trim()) return "Please enter your email.";
         if (!emailPattern.test(value.trim())) return "Please enter a valid email address.";
+        if (studentEmailsLoadFailed) return "Could not check the student database. Refresh and try again.";
+        if (!studentEmailsLoaded) return "Checking the student database. Try again in a moment.";
+        if (!registeredStudentEmails[value.trim().toLowerCase()])
+          return "This email is not registered as a student.";
         return "";
       }
 
@@ -995,4 +1037,5 @@
 
       refreshScheduleFromStorage();
       initFirebaseSync();
+      initStudentEmailValidation();
     })();
