@@ -9,7 +9,6 @@
 <body>
   <div class="page">
     <nav class="nav-row" aria-label="Site">
-      <a href="student.html">Students</a>
       <a href="admin.html">Admin panel</a>
     </nav>
     <div class="card">
@@ -25,8 +24,15 @@
         <div class="booking-layout">
           <div class="booking-block booking-block--contact">
         <div class="form-group" data-field="name">
-          <label for="full-name">Nickname</label>
-          <input type="text" id="full-name" name="fullName" autocomplete="name" />
+          <label for="full-name">Full Name</label>
+          <input
+            type="text"
+            id="full-name"
+            name="fullName"
+            autocomplete="name"
+            placeholder="Enter email to load your name"
+            readonly
+          />
           <span class="error-text" role="alert"></span>
         </div>
 

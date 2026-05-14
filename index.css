@@ -201,6 +201,12 @@
       box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
     }
 
+    input[readonly] {
+      color: var(--text-muted);
+      background: #f1f5f9;
+      cursor: not-allowed;
+    }
+
     select {
       cursor: pointer;
       appearance: none;

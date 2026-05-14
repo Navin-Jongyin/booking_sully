@@ -1,8 +1,8 @@
     import {
-      fetchCloudStudents,
+      fetchCloudApplicants,
       loadCloudState,
       subscribeCloudState,
-      subscribeStudents,
+      subscribeApplicants,
       syncBookingCountsToCloud,
       syncBookingsToCloud,
       syncSlotsToCloud,
@@ -31,9 +31,9 @@
       var viewMonth;
       var selectedDateISO = "";
       var selectedSectionId = "";
-      var registeredStudentEmails = {};
-      var studentEmailsLoaded = false;
-      var studentEmailsLoadFailed = false;
+      var applicantsByEmail = {};
+      var applicantsLoaded = false;
+      var applicantsLoadFailed = false;
 
       /** Same key as admin.html — slots persist in this browser (localStorage). */
       var STORAGE_KEY = "ib_admin_slots_v1";
@@ -147,36 +147,60 @@
         });
       }
 
-      function setRegisteredStudents(students) {
-        registeredStudentEmails = {};
-        (students || []).forEach(function (student) {
-          var email = String((student && (student.emailNorm || student.email)) || "").trim().toLowerCase();
-          if (email) registeredStudentEmails[email] = true;
+      function normalizeEmail(value) {
+        return String(value || "").trim().toLowerCase();
+      }
+
+      function applicantDisplayName(applicant) {
+        if (!applicant) return "";
+        return String(applicant.fullName || "").trim();
+      }
+
+      function syncApplicantNameForEmail() {
+        if (!fields || !fields.email || !fields.name) return;
+        var email = normalizeEmail(fields.email.el.value);
+        var applicant = email ? applicantsByEmail[email] : null;
+        fields.name.el.value = applicantDisplayName(applicant);
+        setFieldError("name", "");
+        fields.name.group.classList.remove("has-error");
+      }
+
+      function setRegisteredApplicants(applicants) {
+        applicantsByEmail = {};
+        (applicants || []).forEach(function (applicant) {
+          var email = normalizeEmail((applicant && applicant.email) || "");
+          if (email) applicantsByEmail[email] = applicant;
         });
-        studentEmailsLoaded = true;
-        studentEmailsLoadFailed = false;
+        applicantsLoaded = true;
+        applicantsLoadFailed = false;
+        syncApplicantNameForEmail();
         if (fields && fields.email && fields.email.el && fields.email.el.value.trim()) {
           validateField("email", true);
+          validateField("name", true);
           validateField("bookingQuota", true);
         }
         updateSubmitState();
       }
 
-      function initStudentEmailValidation() {
-        fetchCloudStudents()
-          .then(function (students) {
-            setRegisteredStudents(students);
+      function initApplicantEmailValidation() {
+        fetchCloudApplicants()
+          .then(function (applicants) {
+            setRegisteredApplicants(applicants);
           })
           .catch(function (err) {
-            console.error("Could not load registered students", err);
-            studentEmailsLoadFailed = true;
-            studentEmailsLoaded = false;
-            if (fields && fields.email && fields.email.el && fields.email.el.value.trim()) validateField("email", true);
+            console.error("Could not load applicants", err);
+            applicantsLoadFailed = true;
+            applicantsLoaded = false;
+            fields.name.el.value = "";
+            if (fields && fields.email && fields.email.el && fields.email.el.value.trim()) {
+              validateField("email", true);
+              validateField("name", true);
+            }
             updateSubmitState();
           });
 
-        subscribeStudents(function (students) {
-          setRegisteredStudents(students);
+        subscribeApplicants(function (applicants) {
+          setRegisteredApplicants(applicants);
         });
       }
 
@@ -495,14 +519,16 @@
       }
 
       function validateName(value) {
-        if (!value || !value.trim()) return "Please enter your name.";
+        if (!fields.email.el.value.trim()) return "Enter your email to load your name.";
+        if (validateEmail(fields.email.el.value)) return "Enter a registered email to load your name.";
+        if (!value || !value.trim()) return "No name was found for this applicant.";
         return "";
       }
 
       function validateBookingQuota() {
         var rawEmail = fields.email.el.value;
         if (validateEmail(rawEmail)) return "";
-        var norm = rawEmail.trim().toLowerCase();
+        var norm = normalizeEmail(rawEmail);
         var dateVal = (dateInput.value || selectedDateISO || "").trim();
         if (!dateVal) return "";
         var list = loadBookingsDetail();
@@ -522,10 +548,9 @@
       function validateEmail(value) {
         if (!value || !value.trim()) return "Please enter your email.";
         if (!emailPattern.test(value.trim())) return "Please enter a valid email address.";
-        if (studentEmailsLoadFailed) return "Could not check the student database. Refresh and try again.";
-        if (!studentEmailsLoaded) return "Checking the student database. Try again in a moment.";
-        if (!registeredStudentEmails[value.trim().toLowerCase()])
-          return "This email is not registered as a student.";
+        if (applicantsLoadFailed) return "Could not check the applicant database. Refresh and try again.";
+        if (!applicantsLoaded) return "Checking the applicant database. Try again in a moment.";
+        if (!applicantsByEmail[normalizeEmail(value)]) return "This email is not registered as an applicant.";
         return "";
       }
 
@@ -904,14 +929,13 @@
         updateSubmitState();
       });
 
-      ["name", "email"].forEach(function (key) {
-        fields[key].el.addEventListener("input", function () {
-          setFieldError(key, "");
-          fields[key].group.classList.remove("has-error");
-          setFieldError("bookingQuota", "");
-          fields.bookingQuota.group.classList.remove("has-error");
-          updateSubmitState();
-        });
+      fields.email.el.addEventListener("input", function () {
+        syncApplicantNameForEmail();
+        setFieldError("email", "");
+        fields.email.group.classList.remove("has-error");
+        setFieldError("bookingQuota", "");
+        fields.bookingQuota.group.classList.remove("has-error");
+        updateSubmitState();
       });
 
       sectionListEl.addEventListener("change", function () {
@@ -921,6 +945,7 @@
       ["name", "email", "phone", "time", "bookingQuota"].forEach(function (key) {
         fields[key].el.addEventListener("blur", function () {
           validateField(key, true);
+          if (key === "email") validateField("name", true);
           updateSubmitState();
         });
       });
@@ -979,6 +1004,7 @@
         var bookDate = dateInput.value;
         var timeRangeLabel = rangeLabelForStoredTime(bookSection, bookTime);
         var emailTrim = fields.email.el.value.trim();
+        var applicant = applicantsByEmail[normalizeEmail(emailTrim)] || null;
         var nameTrim = fields.name.el.value.trim();
         var phoneDigits = digitsOnly(fields.phone.el.value);
 
@@ -988,6 +1014,7 @@
           emailNorm: emailTrim.toLowerCase(),
           email: emailTrim,
           name: nameTrim,
+          nickname: applicant ? String(applicant.nickname || "").trim() : "",
           phone: phoneDigits,
           date: bookDate,
           sectionId: bookSection,
@@ -1037,5 +1064,5 @@
 
       refreshScheduleFromStorage();
       initFirebaseSync();
-      initStudentEmailValidation();
+      initApplicantEmailValidation();
     })();

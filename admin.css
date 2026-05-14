@@ -694,6 +694,7 @@
       font-weight: 600;
     }
 
+    .slot-booking-people .person-nickname,
     .slot-booking-people .person-phone {
       display: block;
       margin-top: 2px;

@@ -25,7 +25,7 @@ const COLLECTIONS = {
   slots: "slots",
   bookingCounts: "bookingCounts",
   bookings: "bookings",
-  students: "students",
+  applicants: "applicants",
 };
 
 export const app = initializeApp(firebaseConfig);
@@ -54,13 +54,6 @@ function bookingDocId(rec, index) {
       index,
     ].join("\t")
   );
-}
-
-function studentDocId(student, index) {
-  if (student && student.emailNorm) return encodeURIComponent(String(student.emailNorm));
-  if (student && student.email) return encodeURIComponent(String(student.email).trim().toLowerCase());
-  if (student && student.id) return String(student.id);
-  return "student-" + index;
 }
 
 function splitBookingKey(key) {
@@ -132,14 +125,16 @@ export async function fetchCloudBookings() {
     });
 }
 
-export async function fetchCloudStudents() {
-  var snap = await getDocs(collection(db, COLLECTIONS.students));
+export async function fetchCloudApplicants() {
+  var snap = await getDocs(collection(db, COLLECTIONS.applicants));
   return snap.docs
     .map(function (d) {
       return d.data();
     })
     .sort(function (a, b) {
-      return String(a.name || "").localeCompare(String(b.name || ""));
+      return String(a.fullName || a.thaiName || a.nickname || "").localeCompare(
+        String(b.fullName || b.thaiName || b.nickname || "")
+      );
     });
 }
 
@@ -233,24 +228,17 @@ export function syncBookingsToCloud(bookings) {
   );
 }
 
-export function syncStudentsToCloud(students) {
-  return replaceCollection(
-    COLLECTIONS.students,
-    (students || []).map(function (student, index) {
-      return { id: studentDocId(student, index), data: stripPrivateFields(student) };
-    })
-  );
-}
-
-export function subscribeStudents(onChange) {
-  return onSnapshot(collection(db, COLLECTIONS.students), function (snap) {
-    var students = snap.docs
+export function subscribeApplicants(onChange) {
+  return onSnapshot(collection(db, COLLECTIONS.applicants), function (snap) {
+    var applicants = snap.docs
       .map(function (d) {
         return d.data();
       })
       .sort(function (a, b) {
-        return String(a.name || "").localeCompare(String(b.name || ""));
+        return String(a.fullName || a.thaiName || a.nickname || "").localeCompare(
+          String(b.fullName || b.thaiName || b.nickname || "")
+        );
       });
-    onChange(students);
+    onChange(applicants);
   });
 }

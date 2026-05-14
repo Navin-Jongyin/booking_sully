@@ -1,7 +1,9 @@
     import {
       fetchAdminCredentials,
+      fetchCloudApplicants,
       loadCloudState,
       subscribeCloudState,
+      subscribeApplicants,
       syncBookingCountsToCloud,
       syncBookingsToCloud,
       syncSlotsToCloud,
@@ -41,6 +43,7 @@
       var viewYear;
       var viewMonth;
       var selectedDateISO = "";
+      var applicantsByEmail = {};
 
       function pad2(n) {
         return String(n).padStart(2, "0");
@@ -61,6 +64,36 @@
         var m = parseInt(p[1], 10) || 0;
         if (isNaN(h)) h = 0;
         return pad2(h) + ":" + pad2(m);
+      }
+
+      function normalizeEmail(value) {
+        return String(value || "").trim().toLowerCase();
+      }
+
+      function setApplicants(applicants) {
+        applicantsByEmail = {};
+        (applicants || []).forEach(function (applicant) {
+          var email = normalizeEmail((applicant && applicant.email) || "");
+          if (email) applicantsByEmail[email] = applicant;
+        });
+        renderBookingTabs();
+      }
+
+      function initApplicantSync() {
+        fetchCloudApplicants()
+          .then(setApplicants)
+          .catch(function (err) {
+            console.error("Could not load applicants", err);
+          });
+
+        subscribeApplicants(setApplicants);
+      }
+
+      function bookingNickname(rec) {
+        var savedNickname = String((rec && rec.nickname) || "").trim();
+        if (savedNickname) return savedNickname;
+        var applicant = applicantsByEmail[normalizeEmail((rec && rec.email) || "")];
+        return applicant ? String(applicant.nickname || "").trim() : "";
       }
 
       function datesWithPublishedSlots() {
@@ -517,6 +550,10 @@
           em.className = "person-email";
           em.textContent = p.email || "—";
           details.appendChild(em);
+          var nickname = document.createElement("span");
+          nickname.className = "person-nickname";
+          nickname.textContent = "Nickname: " + (bookingNickname(p) || "—");
+          details.appendChild(nickname);
           var phone = document.createElement("span");
           phone.className = "person-phone";
           phone.textContent = "Phone: " + (p.phone || "—");
@@ -721,6 +758,11 @@
           li.appendChild(em);
           var br = document.createElement("br");
           li.appendChild(br);
+          var nickname = document.createElement("small");
+          nickname.style.color = "var(--text-muted)";
+          nickname.textContent = "Nickname: " + (bookingNickname(p) || "—");
+          li.appendChild(nickname);
+          li.appendChild(document.createElement("br"));
           var small = document.createElement("small");
           small.style.color = "var(--text-muted)";
           small.textContent = (p.timeLabel || p.startTime || "—") + " · session " + String(p.sectionId || "").slice(0, 14) + "…";
@@ -963,6 +1005,7 @@
         setSelectedDate(todayISODate());
         renderBookingTabs();
         initFirebaseSync();
+        initApplicantSync();
 
         window.addEventListener("storage", function (e) {
           if (e.key === BOOKINGS_KEY || e.key === STORAGE_KEY || e.key === BOOKINGS_DETAIL_KEY || e.key === null)
