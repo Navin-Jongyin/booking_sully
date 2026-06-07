@@ -58,24 +58,6 @@
       }
     }
 
-    .nav-row {
-      display: flex;
-      gap: 16px;
-      justify-content: flex-end;
-      margin-bottom: 10px;
-    }
-
-    .nav-row a {
-      font-size: 0.875rem;
-      font-weight: 600;
-      color: var(--primary);
-      text-decoration: none;
-    }
-
-    .nav-row a:hover {
-      text-decoration: underline;
-    }
-
     @keyframes fadeIn {
       from {
         opacity: 0;
@@ -154,6 +136,21 @@
       margin-top: -12px;
       margin-bottom: 20px;
       min-height: 0;
+    }
+
+    .quota-hint {
+      margin: 0 0 6px;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--success);
+    }
+
+    .quota-hint.quota-hint--none {
+      color: var(--error);
+    }
+
+    .quota-hint[hidden] {
+      display: none;
     }
 
     label {

@@ -14,6 +14,7 @@
       var BOOKINGS_KEY = "ib_slot_bookings_v1";
       var BOOKINGS_DETAIL_KEY = "ib_bookings_detail_v1";
       var MAX_BOOKINGS_PER_SLOT = 5;
+      var MAX_SESSIONS_PER_EMAIL = 2;
       var ADMIN_AUTH_KEY = "ib_admin_authenticated";
 
       var adminStarted = false;
@@ -94,6 +95,25 @@
         if (savedNickname) return savedNickname;
         var applicant = applicantsByEmail[normalizeEmail((rec && rec.email) || "")];
         return applicant ? String(applicant.nickname || "").trim() : "";
+      }
+
+      function countBookingsForEmail(email) {
+        var norm = normalizeEmail(email);
+        if (!norm) return 0;
+        var total = 0;
+        loadBookingsDetail().forEach(function (rec) {
+          if (normalizeEmail(rec.emailNorm || rec.email || "") === norm) total++;
+        });
+        return total;
+      }
+
+      function sessionsLeftForEmail(email) {
+        return Math.max(0, MAX_SESSIONS_PER_EMAIL - countBookingsForEmail(email));
+      }
+
+      function sessionsLeftLabel(rec) {
+        var left = sessionsLeftForEmail((rec && (rec.emailNorm || rec.email)) || "");
+        return left + " session" + (left === 1 ? "" : "s") + " left";
       }
 
       function datesWithPublishedSlots() {
@@ -558,6 +578,10 @@
           phone.className = "person-phone";
           phone.textContent = "Phone: " + (p.phone || "—");
           details.appendChild(phone);
+          var sessionsLeft = document.createElement("span");
+          sessionsLeft.className = "person-sessions-left";
+          sessionsLeft.textContent = sessionsLeftLabel(p);
+          details.appendChild(sessionsLeft);
           li.appendChild(details);
 
           var del = document.createElement("button");
@@ -762,6 +786,11 @@
           nickname.style.color = "var(--text-muted)";
           nickname.textContent = "Nickname: " + (bookingNickname(p) || "—");
           li.appendChild(nickname);
+          li.appendChild(document.createElement("br"));
+          var sessionsLeft = document.createElement("small");
+          sessionsLeft.style.color = "var(--text-muted)";
+          sessionsLeft.textContent = sessionsLeftLabel(p);
+          li.appendChild(sessionsLeft);
           li.appendChild(document.createElement("br"));
           var small = document.createElement("small");
           small.style.color = "var(--text-muted)";

@@ -695,11 +695,16 @@
     }
 
     .slot-booking-people .person-nickname,
-    .slot-booking-people .person-phone {
+    .slot-booking-people .person-phone,
+    .slot-booking-people .person-sessions-left {
       display: block;
       margin-top: 2px;
       color: var(--text-muted);
       font-weight: 600;
+    }
+
+    .slot-booking-people .person-sessions-left {
+      color: var(--success);
     }
 
     .booking-delete-btn {

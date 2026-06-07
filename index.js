@@ -42,7 +42,9 @@
       /** Confirmed bookings with contact info (same browser). */
       var BOOKINGS_DETAIL_KEY = "ib_bookings_detail_v1";
       var MAX_BOOKINGS_PER_SLOT = 5;
+      var MAX_SESSIONS_PER_EMAIL = 2;
       var CANCEL_DEADLINE_MS = 24 * 60 * 60 * 1000;
+      var quotaHintEl = document.getElementById("quota-hint");
 
       function loadBookingMap() {
         try {
@@ -525,22 +527,52 @@
         return "";
       }
 
+      function countBookingsForEmail(email) {
+        var norm = normalizeEmail(email);
+        if (!norm) return 0;
+        var total = 0;
+        loadBookingsDetail().forEach(function (rec) {
+          if (normalizeEmail(rec.emailNorm || rec.email || "") === norm) total++;
+        });
+        return total;
+      }
+
+      function sessionsLeftForEmail(email) {
+        return Math.max(0, MAX_SESSIONS_PER_EMAIL - countBookingsForEmail(email));
+      }
+
+      function sessionsLeftText(left) {
+        return left + " session" + (left === 1 ? "" : "s") + " left";
+      }
+
+      function updateQuotaHint() {
+        if (!quotaHintEl) return;
+        var rawEmail = fields.email.el.value;
+        if (!rawEmail.trim() || validateEmail(rawEmail)) {
+          quotaHintEl.hidden = true;
+          quotaHintEl.textContent = "";
+          quotaHintEl.classList.remove("quota-hint--none");
+          return;
+        }
+        var left = sessionsLeftForEmail(rawEmail);
+        quotaHintEl.textContent = sessionsLeftText(left);
+        quotaHintEl.hidden = false;
+        quotaHintEl.classList.toggle("quota-hint--none", left === 0);
+      }
+
       function validateBookingQuota() {
         var rawEmail = fields.email.el.value;
         if (validateEmail(rawEmail)) return "";
         var norm = normalizeEmail(rawEmail);
         var dateVal = (dateInput.value || selectedDateISO || "").trim();
         if (!dateVal) return "";
-        var list = loadBookingsDetail();
-        var total = 0;
+        var total = countBookingsForEmail(norm);
         var dayCount = 0;
-        for (var i = 0; i < list.length; i++) {
-          if (list[i].emailNorm === norm) {
-            total++;
-            if (list[i].date === dateVal) dayCount++;
-          }
-        }
-        if (total >= 2) return "This email already has 2 bookings (the maximum).";
+        loadBookingsDetail().forEach(function (rec) {
+          if (normalizeEmail(rec.emailNorm || rec.email || "") === norm && rec.date === dateVal) dayCount++;
+        });
+        if (total >= MAX_SESSIONS_PER_EMAIL)
+          return "This email already has " + MAX_SESSIONS_PER_EMAIL + " bookings (the maximum).";
         if (dayCount >= 1) return "This email already has a booking on that date (limit: one session per day).";
         return "";
       }
@@ -648,6 +680,7 @@
       }
 
       function updateSubmitState() {
+        updateQuotaHint();
         submitBtn.disabled = !isFormValid();
         syncSectionTimeDisabledState();
       }
@@ -1060,6 +1093,20 @@
       });
       window.addEventListener("pageshow", function (e) {
         if (e.persisted) refreshScheduleFromStorage();
+      });
+
+      function isEditableTarget(el) {
+        if (!el) return false;
+        var tag = el.tagName;
+        return tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable;
+      }
+
+      document.addEventListener("keydown", function (e) {
+        if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+        if (e.key !== "a" && e.key !== "A") return;
+        if (isEditableTarget(e.target)) return;
+        e.preventDefault();
+        window.location.href = "admin.html";
       });
 
       refreshScheduleFromStorage();
