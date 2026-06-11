@@ -1088,6 +1088,9 @@
         if (e.key === STORAGE_KEY || e.key === BOOKINGS_KEY || e.key === BOOKINGS_DETAIL_KEY || e.key === null)
           refreshScheduleFromStorage();
       });
+      window.addEventListener("ib-bookings-changed", function () {
+        refreshScheduleFromStorage();
+      });
       document.addEventListener("visibilitychange", function () {
         if (!document.hidden) refreshScheduleFromStorage();
       });

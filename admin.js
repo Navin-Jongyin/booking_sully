@@ -619,18 +619,63 @@
         );
       }
 
+      function bookingRecordMatches(a, b) {
+        if (!a || !b) return false;
+        if (a.id && b.id && a.id === b.id) return true;
+        if (a.__adminKey && b.id && a.__adminKey === b.id) return true;
+        if (b.__adminKey && a.id && b.__adminKey === a.id) return true;
+        if (a.__adminKey && b.__adminKey && a.__adminKey === b.__adminKey) return true;
+        return (
+          normalizeEmail(a.emailNorm || a.email || "") === normalizeEmail(b.emailNorm || b.email || "") &&
+          a.date === b.date &&
+          a.sectionId === b.sectionId &&
+          normalizeTimeValue(String(a.startTime || "")) === normalizeTimeValue(String(b.startTime || "")) &&
+          String(a.createdAt || "") === String(b.createdAt || "")
+        );
+      }
+
+      function removeBookingRecord(rec) {
+        if (!rec) return null;
+        var removed = null;
+        var next = loadBookingsDetail().filter(function (b) {
+          if (!removed && bookingRecordMatches(rec, b)) {
+            removed = b;
+            return false;
+          }
+          return true;
+        });
+        if (!removed) return null;
+        saveBookingsDetail(next);
+        decrementBookingCount(removed.sectionId, normalizeTimeValue(String(removed.startTime || "")));
+        return removed;
+      }
+
       function deleteBookingRecord(rec) {
         if (!rec) return;
         var label = (rec.name || rec.email || "this booking") + (rec.timeLabel ? " at " + rec.timeLabel : "");
         if (!confirm("Delete " + label + "?")) return;
 
-        var targetKey = rec.__adminKey;
-        var next = attachAdminRecordKeys(loadBookingsDetail()).filter(function (b) {
-          return b.__adminKey !== targetKey;
-        });
-        saveBookingsDetail(next);
-        decrementBookingCount(rec.sectionId, normalizeTimeValue(String(rec.startTime || "")));
-        refreshBookingDataViews("Deleted that booking.");
+        var email = normalizeEmail((rec && (rec.emailNorm || rec.email)) || "");
+        var sessionsBefore = sessionsLeftForEmail(email);
+        var removed = removeBookingRecord(rec);
+        if (!removed) {
+          refreshBookingDataViews("Could not find that booking.");
+          return;
+        }
+
+        var sessionsAfter = sessionsLeftForEmail(email);
+        var reinstated = sessionsAfter - sessionsBefore;
+        var message = "Deleted that booking.";
+        if (reinstated > 0) {
+          message +=
+            " " +
+            reinstated +
+            " session" +
+            (reinstated === 1 ? "" : "s") +
+            " reinstated" +
+            (email ? " for " + email + "." : ".");
+        }
+        refreshBookingDataViews(message);
       }
 
       function removeCountOnlyBooking(sectionId, startKey) {
