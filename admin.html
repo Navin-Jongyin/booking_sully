@@ -110,11 +110,18 @@
     </div>
 
       <div class="card" id="booking-activity-card">
-        <h2>Booking data by day</h2>
-        <p class="hint">
-          For each time window: how many of 5 spots are used, and who booked (name and email). Tabs include days that
-          only have stored bookings.
-        </p>
+        <div class="booking-card-head">
+          <div>
+            <h2>Booking data by day</h2>
+            <p class="hint">
+              For each time window: how many of 5 spots are used, and who booked (name and email). Tabs include days that
+              only have stored bookings.
+            </p>
+          </div>
+          <button type="button" class="btn-danger btn-small" id="btn-purge-past">
+            Delete past date data
+          </button>
+        </div>
         <div class="booking-tabs" role="tablist" aria-label="Bookings by day" id="booking-tabs"></div>
         <div id="booking-panel-content" class="booking-panel-content" role="tabpanel" aria-live="polite"></div>
         <p class="hint" id="booking-empty-all" hidden>No published days yet. Booking counts will show here after you add sessions.</p>

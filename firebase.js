@@ -144,8 +144,15 @@ export async function loadCloudState() {
 }
 
 export async function fetchAdminCredentials() {
-  var snap = await getDoc(doc(db, "authentication", "admin"));
-  return snap.exists() ? snap.data() : null;
+  var paths = [
+    ["admin", "admin"],
+    ["authentication", "admin"],
+  ];
+  for (var i = 0; i < paths.length; i++) {
+    var snap = await getDoc(doc(db, paths[i][0], paths[i][1]));
+    if (snap.exists()) return snap.data();
+  }
+  return null;
 }
 
 export function subscribeCloudState(onChange) {

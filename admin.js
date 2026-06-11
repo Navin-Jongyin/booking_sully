@@ -468,6 +468,8 @@
               bookingCounts: cloudCountsEmpty ? localCounts : state.bookingCounts,
               bookings: state.bookings && state.bookings.length ? state.bookings : localBookings,
             });
+            var purgeResult = purgePastDateData();
+            if (purgeResult.hadChanges) setMsg(purgePastDateDataMessage(purgeResult), "ok");
           })
           .catch(function (err) {
             console.error("Could not load Firebase data", err);
@@ -534,6 +536,87 @@
         renderBookingTabs();
         renderAdminCalendar();
         if (message) setMsg(message, "ok");
+      }
+
+      function purgePastDateData() {
+        var today = todayISODate();
+        var slots = loadSlots();
+        var pastSectionIds = {};
+        var nextSlots = slots.filter(function (row) {
+          if (row.date && row.date < today) {
+            if (row.id) pastSectionIds[row.id] = true;
+            return false;
+          }
+          return true;
+        });
+
+        var bookings = loadBookingsDetail();
+        var bookingsRemoved = 0;
+        var nextBookings = bookings.filter(function (b) {
+          if (b.date && b.date < today) {
+            bookingsRemoved++;
+            if (b.sectionId) pastSectionIds[b.sectionId] = true;
+            return false;
+          }
+          return true;
+        });
+
+        var map = loadBookingMap();
+        var countsRemoved = 0;
+        var nextMap = {};
+        Object.keys(map).forEach(function (key) {
+          var sectionId = String(key).split("\t")[0];
+          if (pastSectionIds[sectionId]) {
+            countsRemoved++;
+            return;
+          }
+          nextMap[key] = map[key];
+        });
+
+        var hadChanges =
+          nextSlots.length !== slots.length ||
+          nextBookings.length !== bookings.length ||
+          Object.keys(nextMap).length !== Object.keys(map).length;
+
+        if (hadChanges) {
+          saveSlots(nextSlots);
+          saveBookingsDetail(nextBookings);
+          saveBookingMap(nextMap);
+        }
+
+        if (selectedDateISO && selectedDateISO < today) {
+          setSelectedDate(today);
+        } else {
+          renderPublishedForSelectedDay();
+          renderAdminCalendar();
+        }
+        renderBookingTabs();
+
+        return {
+          hadChanges: hadChanges,
+          slotsRemoved: slots.length - nextSlots.length,
+          bookingsRemoved: bookingsRemoved,
+          countsRemoved: countsRemoved,
+        };
+      }
+
+      function purgePastDateDataMessage(result) {
+        if (!result.hadChanges) return "No past date data to delete.";
+        return (
+          "Deleted past date data: " +
+          result.slotsRemoved +
+          " slot day" +
+          (result.slotsRemoved === 1 ? "" : "s") +
+          ", " +
+          result.bookingsRemoved +
+          " booking" +
+          (result.bookingsRemoved === 1 ? "" : "s") +
+          ", " +
+          result.countsRemoved +
+          " slot count" +
+          (result.countsRemoved === 1 ? "" : "s") +
+          "."
+        );
       }
 
       function deleteBookingRecord(rec) {
@@ -1098,6 +1181,15 @@
           renderAdminCalendar();
           setMsg("Removed all sessions for this day.", "ok");
         });
+
+        var btnPurgePast = document.getElementById("btn-purge-past");
+        if (btnPurgePast) {
+          btnPurgePast.addEventListener("click", function () {
+            if (!confirm("Delete all slots, bookings, and counts for dates before today?")) return;
+            var result = purgePastDateData();
+            setMsg(purgePastDateDataMessage(result), result.hadChanges ? "ok" : "");
+          });
+        }
       }
 
       function logoutAdmin() {
