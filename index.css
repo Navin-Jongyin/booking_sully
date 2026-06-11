@@ -668,6 +668,45 @@
       overflow-wrap: anywhere;
     }
 
+    .section-card-category {
+      display: block;
+      margin-top: 4px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .category-filter {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .category-filter-btn {
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #f8fafc;
+      color: var(--text);
+      font-size: 0.875rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background var(--transition), border-color var(--transition), color var(--transition);
+    }
+
+    .category-filter-btn:hover {
+      background: #eef2f7;
+      border-color: #cbd5e1;
+    }
+
+    .category-filter-btn.is-active {
+      background: var(--primary-soft);
+      border-color: var(--primary);
+      color: var(--primary);
+      box-shadow: 0 0 0 1px var(--primary);
+    }
+
     .section-card small {
       color: var(--text-muted);
       font-size: 0.8125rem;

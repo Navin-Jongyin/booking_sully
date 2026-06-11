@@ -69,15 +69,44 @@
             <div class="row" id="published-day-section">
               <label id="published-day-label">Published for this day</label>
               <p class="hint" style="margin-top: 0; margin-bottom: 8px">
-                Sessions saved for the selected date (this browser). Remove one with ×, or clear the whole day below.
+                Sessions saved for the selected date. Edit to change time or category, remove with ×, or clear the whole day below.
               </p>
               <div class="published-slots-strip" id="published-slots-for-day" aria-labelledby="published-day-label"></div>
               <p class="hint published-day-empty" id="published-day-empty" hidden></p>
+              <div class="edit-slot-panel" id="edit-slot-panel" hidden>
+                <p class="edit-slot-title" id="edit-slot-title">Edit session</p>
+                <p class="hint" id="edit-slot-hint"></p>
+                <div class="row" style="margin-bottom: 10px">
+                  <label for="edit-slot-category">Category</label>
+                  <select id="edit-slot-category">
+                    <option value="">Select category</option>
+                    <option value="Student Pilot">Student Pilot</option>
+                    <option value="ATC">ATC</option>
+                  </select>
+                </div>
+                <div class="add-time-row" role="group" aria-labelledby="edit-slot-title">
+                  <input type="time" id="edit-time-start" step="300" aria-label="Session start time" />
+                  <span class="add-time-to" aria-hidden="true">to</span>
+                  <input type="time" id="edit-time-end" step="300" aria-label="Session end time" />
+                  <button type="button" class="btn-primary btn-small" id="btn-save-edit">Save changes</button>
+                  <button type="button" class="btn-ghost btn-small" id="btn-cancel-edit">Cancel</button>
+                </div>
+                <p class="msg" id="edit-slot-msg" role="status"></p>
+              </div>
               <div class="btn-row" style="margin-top: 8px">
                 <button type="button" class="btn-danger" id="btn-clear-day" hidden>
                   Remove all sessions this day
                 </button>
               </div>
+            </div>
+
+            <div class="row">
+              <label for="slot-category">Category</label>
+              <select id="slot-category" required>
+                <option value="">Select category</option>
+                <option value="Student Pilot">Student Pilot</option>
+                <option value="ATC">ATC</option>
+              </select>
             </div>
 
             <div class="row">
@@ -114,13 +143,30 @@
           <div>
             <h2>Booking data by day</h2>
             <p class="hint">
-              For each time window: how many of 5 spots are used, and who booked (name and email). Tabs include days that
-              only have stored bookings.
+              For each time window: how many of 5 spots are used, and who booked (name and email). Sessions left is a
+              lifetime limit (max 2 per email) and only goes back up when you delete a booking here.
             </p>
           </div>
           <button type="button" class="btn-danger btn-small" id="btn-purge-past">
-            Delete past date data
+            Delete past slots
           </button>
+        </div>
+        <div class="booking-filters" id="booking-filters">
+          <div class="booking-filter-field">
+            <label for="booking-user-search">Search user</label>
+            <input
+              type="search"
+              id="booking-user-search"
+              placeholder="Name, email, or nickname"
+              autocomplete="off"
+            />
+          </div>
+          <div class="booking-filter-field">
+            <label for="booking-category-filter">Category</label>
+            <select id="booking-category-filter">
+              <option value="">All categories</option>
+            </select>
+          </div>
         </div>
         <div class="booking-tabs" role="tablist" aria-label="Bookings by day" id="booking-tabs"></div>
         <div id="booking-panel-content" class="booking-panel-content" role="tabpanel" aria-live="polite"></div>

@@ -132,6 +132,64 @@
       margin-bottom: 0;
     }
 
+    .booking-filters {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    @media (min-width: 640px) {
+      .booking-filters {
+        grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+      }
+    }
+
+    .booking-filter-field label {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .booking-filter-field input,
+    .booking-filter-field select {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 0.9375rem;
+      font-family: inherit;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: #fafbfc;
+    }
+
+    .booking-filter-field input:focus,
+    .booking-filter-field select:focus {
+      outline: none;
+      border-color: var(--primary);
+      background: #fff;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+
+    .slot-category-badge,
+    .person-category {
+      display: inline-block;
+      margin-top: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .slot-booking-head .slot-category-badge {
+      margin-top: 0;
+      margin-left: 8px;
+    }
+
+    .slot-booking-people .person-category {
+      display: block;
+      width: fit-content;
+    }
+
     .login-card {
       max-width: 420px;
       margin: 80px auto 20px;
@@ -180,6 +238,10 @@
     select {
       width: auto;
       min-width: 7rem;
+    }
+
+    #slot-category {
+      width: 100%;
     }
 
     input:focus,
@@ -540,15 +602,50 @@
       margin: 0;
       border: none;
       background: transparent;
-      color: var(--text-muted);
       cursor: pointer;
-      font-size: 1rem;
+      font-size: 0.75rem;
       line-height: 1;
       font-weight: 700;
+      font-family: inherit;
     }
 
-    .published-chip button:hover {
+    .published-chip-edit {
+      color: var(--primary);
+      padding: 0 6px;
+    }
+
+    .published-chip-edit:hover {
+      text-decoration: underline;
+    }
+
+    .published-chip-remove {
+      color: var(--text-muted);
+      font-size: 1rem;
+    }
+
+    .published-chip-remove:hover {
       color: var(--error);
+    }
+
+    .published-chip.is-editing {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 1px var(--primary);
+      background: var(--primary-soft, #eff6ff);
+    }
+
+    .edit-slot-panel {
+      margin-top: 12px;
+      padding: 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: #f8fafc;
+    }
+
+    .edit-slot-title {
+      margin: 0 0 4px;
+      font-size: 0.9375rem;
+      font-weight: 700;
+      color: var(--text);
     }
 
     .booking-tabs {

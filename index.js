@@ -31,6 +31,9 @@
       var viewMonth;
       var selectedDateISO = "";
       var selectedSectionId = "";
+      var selectedCategoryFilter = "";
+      var SLOT_CATEGORIES = ["Student Pilot", "ATC"];
+      var categoryFilterEl = document.getElementById("category-filter");
       var applicantsByEmail = {};
       var applicantsLoaded = false;
       var applicantsLoadFailed = false;
@@ -345,20 +348,85 @@
         });
       }
 
+      function slotMatchesCategoryFilter(slot) {
+        if (!selectedCategoryFilter) return false;
+        return slotCategoryFromSlot(slot) === selectedCategoryFilter;
+      }
+
+      function validateCategory() {
+        if (!selectedCategoryFilter) return "Please select Student Pilot or ATC.";
+        return "";
+      }
+
       function sectionHasAvailableSlot(sec) {
         if (!sec || !sec.slots || !sec.slots.length) return false;
         return sec.slots.some(function (t) {
+          if (!slotMatchesCategoryFilter(t)) return false;
           return getBookingCount(sec.id, slotStartKey(t)) < MAX_BOOKINGS_PER_SLOT;
         });
       }
 
       function dateAvailabilityState(iso) {
+        if (!selectedCategoryFilter) return "closed";
         var secs = sectionsForDate(iso);
         if (!secs.length) return "closed";
+        var hasMatching = false;
+        var hasAvailable = false;
         for (var i = 0; i < secs.length; i++) {
-          if (sectionHasAvailableSlot(secs[i])) return "available";
+          var sec = secs[i];
+          if (!sec.slots) continue;
+          for (var j = 0; j < sec.slots.length; j++) {
+            var slot = sec.slots[j];
+            if (!slotMatchesCategoryFilter(slot)) continue;
+            hasMatching = true;
+            if (getBookingCount(sec.id, slotStartKey(slot)) < MAX_BOOKINGS_PER_SLOT) hasAvailable = true;
+          }
         }
+        if (!hasMatching) return "closed";
+        if (hasAvailable) return "available";
         return "full";
+      }
+
+      function renderCategoryFilters() {
+        if (!categoryFilterEl) return;
+        categoryFilterEl.innerHTML = "";
+        SLOT_CATEGORIES.forEach(function (cat) {
+          var opt = { value: cat, label: cat };
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "category-filter-btn" + (selectedCategoryFilter === opt.value ? " is-active" : "");
+          btn.textContent = opt.label;
+          btn.setAttribute("aria-pressed", selectedCategoryFilter === opt.value ? "true" : "false");
+          btn.addEventListener("click", function () {
+            setCategoryFilter(opt.value);
+          });
+          categoryFilterEl.appendChild(btn);
+        });
+      }
+
+      function setCategoryFilter(category) {
+        selectedCategoryFilter = category;
+        renderCategoryFilters();
+        setFieldError("category", "");
+        fields.category.group.classList.remove("has-error");
+        if (selectedDateISO && dateAvailabilityState(selectedDateISO) !== "available") {
+          selectedDateISO = "";
+          selectedSectionId = "";
+          dateInput.value = "";
+          sectionListEl.innerHTML = "";
+          resetTimeSlots();
+          setFieldError("section", "");
+          setFieldError("time", "");
+          setFieldError("date", "");
+          fields.date.group.classList.remove("has-error");
+        } else if (selectedDateISO) {
+          renderSectionRadios(selectedDateISO);
+        }
+        updateEmptyHint();
+        renderCalendar();
+        updateSessionEmptyPlaceholder();
+        syncSectionTimeDisabledState();
+        updateSubmitState();
       }
 
       function pad2(n) {
@@ -406,14 +474,28 @@
       var ADMIN_SECTIONS = [];
 
       function updateEmptyHint() {
-        var hint = document.getElementById("cal-hint");
-        if (!hint) return;
+        var calHint = document.getElementById("cal-hint");
+        var categoryHint = document.getElementById("category-hint");
         if (!ADMIN_SECTIONS.length) {
-          hint.textContent =
-            "No slots yet. Open the Admin panel to add dates and times. Green days are bookable once added.";
-        } else {
-          hint.textContent =
-            "Green = at least one open slot. Red = published but every slot is full (5 bookings each). Grey = no sessions.";
+          if (calHint) {
+            calHint.textContent =
+              "No slots yet. Open the Admin panel to add dates and times. Green days are bookable once added.";
+          }
+          return;
+        }
+        if (!selectedCategoryFilter) {
+          if (categoryHint) categoryHint.textContent = "Select Student Pilot or ATC to see available dates.";
+          if (calHint) calHint.textContent = "Choose a category first. The calendar will show matching dates.";
+          return;
+        }
+        if (categoryHint) categoryHint.textContent = "Selected: " + selectedCategoryFilter + ".";
+        if (calHint) {
+          calHint.textContent =
+            "Green = open " +
+            selectedCategoryFilter +
+            " sessions. Red = full. Grey = no " +
+            selectedCategoryFilter +
+            " sessions.";
         }
       }
 
@@ -422,7 +504,7 @@
         updateEmptyHint();
         renderCalendar();
         if (selectedDateISO) {
-          if (!datesWithOpeningsSet()[selectedDateISO] || dateAvailabilityState(selectedDateISO) !== "available") {
+          if (dateAvailabilityState(selectedDateISO) !== "available") {
             selectedDateISO = "";
             selectedSectionId = "";
             dateInput.value = "";
@@ -440,14 +522,19 @@
       function updateSessionEmptyPlaceholder() {
         if (!sessionEmptyEl || !sessionEmptyMsg) return;
         var secs = selectedDateISO ? sectionsForDate(selectedDateISO) : [];
-        var show = secs.length === 0;
+        var visibleSlotCount = sectionListEl ? sectionListEl.children.length : 0;
+        var show = !selectedDateISO || visibleSlotCount === 0;
         if (show) {
           if (!ADMIN_SECTIONS.length) {
             sessionEmptyMsg.textContent =
               "No interview sessions are open yet. Use the Admin panel to publish dates and times.";
           } else if (!selectedDateISO) {
+            sessionEmptyMsg.textContent = selectedCategoryFilter
+              ? "Pick a green date on the calendar for " + selectedCategoryFilter + "."
+              : "Select Student Pilot or ATC first before choosing a time slot.";
+          } else if (selectedCategoryFilter) {
             sessionEmptyMsg.textContent =
-              "Select a green date on the calendar (red days are fully booked).";
+              "No " + selectedCategoryFilter + " sessions on this day. Try another date.";
           } else {
             sessionEmptyMsg.textContent = "No open sessions for this date.";
           }
@@ -512,6 +599,11 @@
           group: document.querySelector('[data-field="bookingQuota"]'),
           errorEl: document.querySelector('[data-field="bookingQuota"] .error-text'),
         },
+        category: {
+          el: categoryFilterEl,
+          group: document.querySelector('[data-field="category"]'),
+          errorEl: document.querySelector('[data-field="category"] .error-text'),
+        },
       };
 
       var emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -541,8 +633,19 @@
         return Math.max(0, MAX_SESSIONS_PER_EMAIL - countBookingsForEmail(email));
       }
 
-      function sessionsLeftText(left) {
-        return left + " session" + (left === 1 ? "" : "s") + " left";
+      function sessionsLeftText(email) {
+        var used = countBookingsForEmail(email);
+        var left = sessionsLeftForEmail(email);
+        return (
+          used +
+          "/" +
+          MAX_SESSIONS_PER_EMAIL +
+          " booked (lifetime) · " +
+          left +
+          " session" +
+          (left === 1 ? "" : "s") +
+          " left"
+        );
       }
 
       function updateQuotaHint() {
@@ -554,8 +657,9 @@
           quotaHintEl.classList.remove("quota-hint--none");
           return;
         }
-        var left = sessionsLeftForEmail(rawEmail);
-        quotaHintEl.textContent = sessionsLeftText(left);
+        var normEmail = normalizeEmail(rawEmail);
+        var left = sessionsLeftForEmail(normEmail);
+        quotaHintEl.textContent = sessionsLeftText(normEmail);
         quotaHintEl.hidden = false;
         quotaHintEl.classList.toggle("quota-hint--none", left === 0);
       }
@@ -594,15 +698,20 @@
       }
 
       function validateDate(value) {
+        var categoryMsg = validateCategory();
+        if (categoryMsg) return categoryMsg;
         if (!value) return "Please select a date on the calendar.";
         if (value < todayISODate()) return "Please choose today or a future date.";
-        if (!datesWithOpeningsSet()[value]) return "That day has no published sessions. Pick a different date.";
+        if (dateAvailabilityState(value) === "closed")
+          return "That day has no " + selectedCategoryFilter + " sessions. Pick a different date.";
         if (dateAvailabilityState(value) === "full")
           return "That date is fully booked (each time slot allows up to 5 bookings).";
         return "";
       }
 
       function validateSection() {
+        var categoryMsg = validateCategory();
+        if (categoryMsg) return categoryMsg;
         if (!selectedDateISO) return "Pick a calendar date first.";
         var secs = sectionsForDate(selectedDateISO);
         if (!secs.length) return "No published times for this date.";
@@ -653,6 +762,9 @@
         bookingQuota: function () {
           return validateBookingQuota();
         },
+        category: function () {
+          return validateCategory();
+        },
       };
 
       function setFieldError(key, message) {
@@ -669,6 +781,7 @@
 
       function isFormValid() {
         return (
+          !validateCategory() &&
           !validateName(fields.name.el.value) &&
           !validateEmail(fields.email.el.value) &&
           !validatePhone(fields.phone.el.value) &&
@@ -686,9 +799,9 @@
       }
 
       function syncSectionTimeDisabledState() {
+        var hasCategory = Boolean(selectedCategoryFilter);
         var hasDate = Boolean(selectedDateISO);
-        var secs = hasDate ? sectionsForDate(selectedDateISO) : [];
-        sectionFieldGroup.classList.toggle("form-block-muted", !hasDate);
+        sectionFieldGroup.classList.toggle("form-block-muted", !hasCategory || !hasDate);
         timeFieldGroup.classList.toggle("form-block-muted", !selectedSectionId);
       }
 
@@ -732,6 +845,23 @@
         return slotStartKey(slots[index]) + " – " + slotEndResolved(slots, index);
       }
 
+      function slotCategoryFromSlot(slot) {
+        if (slot && typeof slot === "object" && slot.category) return String(slot.category).trim();
+        if (slot && typeof slot === "object" && slot.title) return String(slot.title).trim();
+        return "";
+      }
+
+      function categoryForSectionSlot(sectionId, startKey) {
+        var sec = ADMIN_SECTIONS.find(function (s) {
+          return s.id === sectionId;
+        });
+        if (!sec || !sec.slots) return "";
+        for (var i = 0; i < sec.slots.length; i++) {
+          if (slotStartKey(sec.slots[i]) === startKey) return slotCategoryFromSlot(sec.slots[i]);
+        }
+        return "";
+      }
+
       function renderSectionRadios(iso, preserveSectionId) {
         var preserveTime = timeSlotValueInput.value;
         sectionListEl.innerHTML = "";
@@ -743,10 +873,12 @@
         secs.forEach(function (sec) {
           if (!sec.slots || !sec.slots.length) return;
           sec.slots.forEach(function (slot, slotIdx) {
+            if (!slotMatchesCategoryFilter(slot)) return;
             var startKey = slotStartKey(slot);
             var count = getBookingCount(sec.id, startKey);
             var full = count >= MAX_BOOKINGS_PER_SLOT;
             var rangeLabel = slotRangeLabel(sec.slots, slotIdx);
+            var slotCategory = slotCategoryFromSlot(slot);
 
             if (!full) {
               selectable.push({ sectionId: sec.id, time: startKey, input: null });
@@ -768,7 +900,9 @@
               card.innerHTML =
                 '<strong class="section-card-line">' +
                 escapeHtml(rangeLabel) +
-                '</strong><small>Full · ' +
+                "</strong>" +
+                (slotCategory ? '<span class="section-card-category">' + escapeHtml(slotCategory) + "</span>" : "") +
+                '<small>Full · ' +
                 MAX_BOOKINGS_PER_SLOT +
                 "/" +
                 MAX_BOOKINGS_PER_SLOT +
@@ -777,7 +911,9 @@
               card.innerHTML =
                 '<strong class="section-card-line">' +
                 escapeHtml(rangeLabel) +
-                '</strong><small>' +
+                "</strong>" +
+                (slotCategory ? '<span class="section-card-category">' + escapeHtml(slotCategory) + "</span>" : "") +
+                "<small>" +
                 count +
                 "/" +
                 MAX_BOOKINGS_PER_SLOT +
@@ -834,6 +970,11 @@
       }
 
       function selectCalendarDate(iso) {
+        if (!selectedCategoryFilter) {
+          setFieldError("category", "Please select Student Pilot or ATC first.");
+          fields.category.group.classList.add("has-error");
+          return;
+        }
         selectedDateISO = iso;
         dateInput.value = iso;
         setFieldError("date", "");
@@ -854,7 +995,6 @@
       }
 
       function renderCalendar() {
-        var open = openDatesSet();
         var today = todayISODate();
         var first = new Date(viewYear, viewMonth, 1);
         var startWeekday = first.getDay();
@@ -882,16 +1022,19 @@
           btn.textContent = String(dayNum);
 
           var isPast = iso < today;
-          var hasSessions = Boolean(open[iso]);
-          var availState = hasSessions ? dateAvailabilityState(iso) : "closed";
+          var availState = selectedCategoryFilter ? dateAvailabilityState(iso) : "closed";
+          var hasCategorySessions = availState !== "closed";
 
           if (isPast) {
             btn.classList.add("cal-cell--past");
             btn.disabled = true;
             btn.setAttribute("aria-label", iso + ", past date");
-          } else if (!hasSessions) {
+          } else if (!selectedCategoryFilter) {
             btn.classList.add("cal-cell--closed");
-            btn.setAttribute("aria-label", iso + ", no session published");
+            btn.setAttribute("aria-label", iso + ", select a category first");
+          } else if (!hasCategorySessions) {
+            btn.classList.add("cal-cell--closed");
+            btn.setAttribute("aria-label", iso + ", no " + selectedCategoryFilter + " session");
           } else if (availState === "available") {
             btn.classList.add("cal-cell--open");
             btn.setAttribute("aria-label", iso + ", open with availability");
@@ -903,18 +1046,26 @@
           if (iso === today) btn.classList.add("cal-cell--today");
           if (selectedDateISO && iso === selectedDateISO) btn.classList.add("cal-cell--selected");
 
-          if (!isPast && hasSessions && availState === "available") {
+          if (!isPast && !selectedCategoryFilter) {
+            btn.addEventListener("click", function () {
+              setFieldError("category", "Please select Student Pilot or ATC first.");
+              fields.category.group.classList.add("has-error");
+            });
+          } else if (!isPast && selectedCategoryFilter && availState === "available") {
             btn.addEventListener("click", function (dIso) {
               return function () {
                 selectCalendarDate(dIso);
               };
             }(iso));
-          } else if (!isPast && !hasSessions) {
+          } else if (!isPast && selectedCategoryFilter && !hasCategorySessions) {
             btn.addEventListener("click", function () {
-              setFieldError("date", "No session published that day. Choose another date.");
+              setFieldError(
+                "date",
+                "No " + selectedCategoryFilter + " sessions on that day. Choose another date."
+              );
               fields.date.group.classList.add("has-error");
             });
-          } else if (!isPast && hasSessions && availState === "full") {
+          } else if (!isPast && selectedCategoryFilter && availState === "full") {
             btn.addEventListener("click", function () {
               setFieldError(
                 "date",
@@ -1053,6 +1204,7 @@
           sectionId: bookSection,
           startTime: bookTime,
           timeLabel: timeRangeLabel || bookTime,
+          category: categoryForSectionSlot(bookSection, bookTime),
           createdAt: new Date().toISOString(),
         });
 
@@ -1112,6 +1264,7 @@
         window.location.href = "admin.html";
       });
 
+      renderCategoryFilters();
       refreshScheduleFromStorage();
       initFirebaseSync();
       initApplicantEmailValidation();

@@ -40,11 +40,26 @@
       var btnAddOneTime = document.getElementById("btn-add-one-time");
       var pendingChips = document.getElementById("pending-chips");
       var btnClearPending = document.getElementById("btn-clear-pending");
+      var SLOT_CATEGORIES = ["Student Pilot", "ATC"];
+      var slotCategoryInput = document.getElementById("slot-category");
+      var bookingUserSearchInput = document.getElementById("booking-user-search");
+      var bookingCategoryFilterSelect = document.getElementById("booking-category-filter");
+      var editSlotPanel = document.getElementById("edit-slot-panel");
+      var editSlotHint = document.getElementById("edit-slot-hint");
+      var editTimeStart = document.getElementById("edit-time-start");
+      var editTimeEnd = document.getElementById("edit-time-end");
+      var editSlotCategory = document.getElementById("edit-slot-category");
+      var editSlotMsg = document.getElementById("edit-slot-msg");
+      var btnSaveEdit = document.getElementById("btn-save-edit");
+      var btnCancelEdit = document.getElementById("btn-cancel-edit");
 
       var viewYear;
       var viewMonth;
       var selectedDateISO = "";
+      var editingSlotStartKey = "";
       var applicantsByEmail = {};
+      var bookingSearchQuery = "";
+      var bookingCategoryFilter = "";
 
       function pad2(n) {
         return String(n).padStart(2, "0");
@@ -112,8 +127,103 @@
       }
 
       function sessionsLeftLabel(rec) {
-        var left = sessionsLeftForEmail((rec && (rec.emailNorm || rec.email)) || "");
-        return left + " session" + (left === 1 ? "" : "s") + " left";
+        var email = (rec && (rec.emailNorm || rec.email)) || "";
+        var used = countBookingsForEmail(email);
+        var left = sessionsLeftForEmail(email);
+        return (
+          used +
+          "/" +
+          MAX_SESSIONS_PER_EMAIL +
+          " booked (lifetime) · " +
+          left +
+          " session" +
+          (left === 1 ? "" : "s") +
+          " left"
+        );
+      }
+
+      function normalizeCategory(value) {
+        return String(value || "").trim();
+      }
+
+      function isValidSlotCategory(value) {
+        return SLOT_CATEGORIES.indexOf(normalizeCategory(value)) !== -1;
+      }
+
+      function slotCategoryFromSlot(slot) {
+        var o = normalizeSlotEntry(slot);
+        return o.category || "";
+      }
+
+      function bookingCategoryForSlot(sectionId, startKey) {
+        var rows = loadSlots();
+        for (var i = 0; i < rows.length; i++) {
+          if (rows[i].id !== sectionId) continue;
+          for (var j = 0; j < (rows[i].slots || []).length; j++) {
+            if (slotStartKey(rows[i].slots[j]) === startKey) return slotCategoryFromSlot(rows[i].slots[j]);
+          }
+        }
+        return "";
+      }
+
+      function bookingCategory(rec) {
+        var saved = normalizeCategory(rec && rec.category);
+        if (saved) return saved;
+        return bookingCategoryForSlot(rec.sectionId, normalizeTimeValue(String(rec.startTime || "")));
+      }
+
+      function refreshBookingFilterOptions() {
+        if (!bookingCategoryFilterSelect) return;
+        var current = bookingCategoryFilter;
+        bookingCategoryFilterSelect.innerHTML = "";
+        var allOpt = document.createElement("option");
+        allOpt.value = "";
+        allOpt.textContent = "All categories";
+        bookingCategoryFilterSelect.appendChild(allOpt);
+        SLOT_CATEGORIES.forEach(function (cat) {
+          var opt = document.createElement("option");
+          opt.value = cat;
+          opt.textContent = cat;
+          bookingCategoryFilterSelect.appendChild(opt);
+        });
+        bookingCategoryFilterSelect.value = current;
+      }
+
+      function bookingMatchesUserSearch(rec) {
+        if (!bookingSearchQuery) return true;
+        var q = bookingSearchQuery.toLowerCase();
+        var applicant = applicantsByEmail[normalizeEmail((rec && rec.email) || "")];
+        var parts = [
+          rec && rec.name,
+          rec && rec.email,
+          bookingNickname(rec),
+          applicant && applicant.fullName,
+          applicant && applicant.nickname,
+        ];
+        for (var i = 0; i < parts.length; i++) {
+          if (parts[i] && String(parts[i]).toLowerCase().indexOf(q) !== -1) return true;
+        }
+        return false;
+      }
+
+      function bookingMatchesCategoryFilter(rec) {
+        if (!bookingCategoryFilter) return true;
+        return bookingCategory(rec) === bookingCategoryFilter;
+      }
+
+      function bookingMatchesFilters(rec) {
+        return bookingMatchesUserSearch(rec) && bookingMatchesCategoryFilter(rec);
+      }
+
+      function filtersAreActive() {
+        return Boolean(bookingSearchQuery || bookingCategoryFilter);
+      }
+
+      function createCategoryBadge(text) {
+        var badge = document.createElement("span");
+        badge.className = "slot-category-badge";
+        badge.textContent = text || "Uncategorized";
+        return badge;
       }
 
       function datesWithPublishedSlots() {
@@ -125,6 +235,7 @@
       }
 
       function setSelectedDate(iso) {
+        cancelEditPublishedSlot();
         selectedDateISO = iso;
         dateInput.value = iso || "";
         if (!iso) {
@@ -236,6 +347,7 @@
         try {
           window.dispatchEvent(new Event("ib-slots-changed"));
         } catch (err) {}
+        refreshBookingFilterOptions();
         renderBookingTabs();
       }
 
@@ -255,9 +367,10 @@
           return {
             start: normalizeTimeValue(String(s.start)),
             end: s.end ? normalizeTimeValue(String(s.end)) : null,
+            category: normalizeCategory(s.category || s.title || ""),
           };
         }
-        return { start: normalizeTimeValue(String(s)), end: null };
+        return { start: normalizeTimeValue(String(s)), end: null, category: "" };
       }
 
       function slotStartKey(slot) {
@@ -296,8 +409,9 @@
 
       function serializeSlot(o) {
         if (!o || !o.start) return null;
-        if (o.end) return { start: o.start, end: o.end };
-        return o.start;
+        var out = o.end ? { start: o.start, end: o.end } : { start: o.start };
+        if (o.category) out.category = o.category;
+        return out;
       }
 
       function sortSlotEntries(arr) {
@@ -328,7 +442,10 @@
             if (keepId === null) keepId = list[i].id;
             (list[i].slots || []).forEach(function (s) {
               var o = normalizeSlotEntry(s);
-              if (o.start) combined[o.start] = o;
+              if (o.start) {
+                if (combined[o.start] && !o.category) o.category = combined[o.start].category || "";
+                combined[o.start] = o;
+              }
             });
           }
         }
@@ -550,17 +667,6 @@
           return true;
         });
 
-        var bookings = loadBookingsDetail();
-        var bookingsRemoved = 0;
-        var nextBookings = bookings.filter(function (b) {
-          if (b.date && b.date < today) {
-            bookingsRemoved++;
-            if (b.sectionId) pastSectionIds[b.sectionId] = true;
-            return false;
-          }
-          return true;
-        });
-
         var map = loadBookingMap();
         var countsRemoved = 0;
         var nextMap = {};
@@ -574,13 +680,10 @@
         });
 
         var hadChanges =
-          nextSlots.length !== slots.length ||
-          nextBookings.length !== bookings.length ||
-          Object.keys(nextMap).length !== Object.keys(map).length;
+          nextSlots.length !== slots.length || Object.keys(nextMap).length !== Object.keys(map).length;
 
         if (hadChanges) {
           saveSlots(nextSlots);
-          saveBookingsDetail(nextBookings);
           saveBookingMap(nextMap);
         }
 
@@ -595,27 +698,22 @@
         return {
           hadChanges: hadChanges,
           slotsRemoved: slots.length - nextSlots.length,
-          bookingsRemoved: bookingsRemoved,
           countsRemoved: countsRemoved,
         };
       }
 
       function purgePastDateDataMessage(result) {
-        if (!result.hadChanges) return "No past date data to delete.";
+        if (!result.hadChanges) return "No past slot data to delete.";
         return (
-          "Deleted past date data: " +
+          "Deleted past slot data: " +
           result.slotsRemoved +
           " slot day" +
           (result.slotsRemoved === 1 ? "" : "s") +
           ", " +
-          result.bookingsRemoved +
-          " booking" +
-          (result.bookingsRemoved === 1 ? "" : "s") +
-          ", " +
           result.countsRemoved +
           " slot count" +
           (result.countsRemoved === 1 ? "" : "s") +
-          "."
+          ". Booking records were kept so session limits stay correct."
         );
       }
 
@@ -687,7 +785,18 @@
       function renderBookingPersonList(bookings) {
         var ulP = document.createElement("ul");
         ulP.className = "slot-booking-people";
-        sortBookingsNewestFirst(bookings).forEach(function (p) {
+        var filtered = sortBookingsNewestFirst(bookings).filter(bookingMatchesFilters);
+        if (!filtered.length) {
+          var empty = document.createElement("p");
+          empty.className = "hint";
+          empty.style.margin = "0";
+          empty.textContent = filtersAreActive()
+            ? "No bookings match the current search or category filter."
+            : "No bookings yet for this slot.";
+          ulP.appendChild(empty);
+          return ulP;
+        }
+        filtered.forEach(function (p) {
           var li = document.createElement("li");
           var details = document.createElement("span");
           var strong = document.createElement("strong");
@@ -702,6 +811,10 @@
           nickname.className = "person-nickname";
           nickname.textContent = "Nickname: " + (bookingNickname(p) || "—");
           details.appendChild(nickname);
+          var category = document.createElement("span");
+          category.className = "person-category";
+          category.textContent = bookingCategory(p) || "Uncategorized";
+          details.appendChild(category);
           var phone = document.createElement("span");
           phone.className = "person-phone";
           phone.textContent = "Phone: " + (p.phone || "—");
@@ -772,6 +885,14 @@
           return;
         }
 
+        if (filtersAreActive()) {
+          var visibleCount = allDetails.filter(bookingMatchesFilters).length;
+          if (!visibleCount) {
+            panel.innerHTML = "<p class=\"hint\">No bookings match the current search or category filter for this day.</p>";
+            return;
+          }
+        }
+
         if (!rows.length && allDetails.length) {
           var introN = document.createElement("p");
           introN.className = "hint";
@@ -785,7 +906,11 @@
           allDetails.forEach(function (b) {
             var k = String(b.sectionId) + "\t" + normalizeTimeValue(String(b.startTime || ""));
             if (!groups[k]) {
-              groups[k] = { label: b.timeLabel || b.startTime || k, list: [] };
+              groups[k] = {
+                label: b.timeLabel || b.startTime || k,
+                category: bookingCategory(b),
+                list: [],
+              };
             }
             groups[k].list.push(b);
           });
@@ -794,6 +919,8 @@
             .sort()
             .forEach(function (gk) {
               var g = groups[gk];
+              var visible = g.list.filter(bookingMatchesFilters);
+              if (filtersAreActive() && !visible.length) return;
               var block = document.createElement("div");
               block.className = "slot-booking-block";
               var head = document.createElement("div");
@@ -802,9 +929,10 @@
               timeEl.className = "slot-booking-time";
               timeEl.textContent = g.label;
               head.appendChild(timeEl);
+              head.appendChild(createCategoryBadge(g.category));
               var countEl = document.createElement("span");
               countEl.className = "slot-booking-count";
-              countEl.textContent = g.list.length + " booked";
+              countEl.textContent = (filtersAreActive() ? visible.length : g.list.length) + " booked";
               head.appendChild(countEl);
               block.appendChild(head);
               block.appendChild(renderBookingPersonList(g.list));
@@ -825,18 +953,20 @@
         rows.forEach(function (row) {
           var wrap = document.createElement("div");
           wrap.className = "booking-day-group";
-
-          var h = document.createElement("h3");
-          h.textContent = row.title || "Interview";
-          wrap.appendChild(h);
+          var blockCount = 0;
 
           (row.slots || []).forEach(function (slot, idx) {
             var startKey = slotStartKey(slot);
             var label = slotRangeLabel(row.slots, idx);
+            var slotCategory = slotCategoryFromSlot(slot);
 
             var people = allDetails.filter(function (b) {
               return bookingMatchesSectionSlot(b, row.id, startKey);
             });
+            var visiblePeople = people.filter(bookingMatchesFilters);
+            if (filtersAreActive() && !visiblePeople.length) return;
+            blockCount++;
+
             people.forEach(function (b) {
               matchedDetailIds[b.__adminKey] = true;
             });
@@ -852,10 +982,11 @@
             var timeEl = document.createElement("span");
             timeEl.className = "slot-booking-time";
             timeEl.textContent = label;
+            head.appendChild(timeEl);
+            head.appendChild(createCategoryBadge(slotCategory));
             var countEl = document.createElement("span");
             countEl.className = "slot-booking-count";
             countEl.textContent = booked + " / " + MAX_BOOKINGS_PER_SLOT + " booked";
-            head.appendChild(timeEl);
             head.appendChild(countEl);
             block.appendChild(head);
 
@@ -871,18 +1002,19 @@
               }
             } else {
               block.appendChild(renderBookingPersonList(people));
-              appendMissingDetailsNote(block, missingDetails, row.id, startKey);
+              if (!filtersAreActive()) appendMissingDetailsNote(block, missingDetails, row.id, startKey);
             }
 
             wrap.appendChild(block);
           });
 
-          panel.appendChild(wrap);
+          if (blockCount > 0) panel.appendChild(wrap);
         });
 
         var orphans = allDetails.filter(function (b) {
           return !matchedDetailIds[b.__adminKey];
         });
+        orphans = orphans.filter(bookingMatchesFilters);
         if (!orphans.length) return;
 
         var ob = document.createElement("div");
@@ -914,6 +1046,11 @@
           nickname.style.color = "var(--text-muted)";
           nickname.textContent = "Nickname: " + (bookingNickname(p) || "—");
           li.appendChild(nickname);
+          li.appendChild(document.createElement("br"));
+          var category = document.createElement("small");
+          category.style.color = "var(--text-muted)";
+          category.textContent = "Category: " + (bookingCategory(p) || "Uncategorized");
+          li.appendChild(category);
           li.appendChild(document.createElement("br"));
           var sessionsLeft = document.createElement("small");
           sessionsLeft.style.color = "var(--text-muted)";
@@ -978,6 +1115,7 @@
         if (!bookingTabDate || dates.indexOf(bookingTabDate) === -1) {
           bookingTabDate = dates[0];
         }
+        refreshBookingFilterOptions();
         setBookingTab(bookingTabDate);
       }
 
@@ -986,7 +1124,8 @@
         pendingChips.querySelectorAll(".time-chip").forEach(function (chip) {
           var st = chip.getAttribute("data-start");
           var en = chip.getAttribute("data-end");
-          if (st && en) out.push({ start: st, end: en });
+          var cat = chip.getAttribute("data-category") || "";
+          if (st && en) out.push({ start: st, end: en, category: cat });
         });
         return out;
       }
@@ -1003,9 +1142,10 @@
         return start + "|" + end;
       }
 
-      function addPendingSlot(start, end) {
+      function addPendingSlot(start, end, category) {
         var normS = normalizeTimeValue(start);
         var normE = normalizeTimeValue(end);
+        var normCat = normalizeCategory(category);
         if (!normS || !normE) return false;
         var key = chipKey(normS, normE);
         if (pendingChips.querySelector('.time-chip[data-chip-key="' + key + '"]')) return false;
@@ -1014,8 +1154,9 @@
         chip.className = "time-chip";
         chip.setAttribute("data-start", normS);
         chip.setAttribute("data-end", normE);
+        chip.setAttribute("data-category", normCat);
         chip.setAttribute("data-chip-key", key);
-        chip.appendChild(document.createTextNode(normS + "–" + normE + " "));
+        chip.appendChild(document.createTextNode(normS + "–" + normE + (normCat ? " · " + normCat : "") + " "));
 
         var rm = document.createElement("button");
         rm.type = "button";
@@ -1061,13 +1202,36 @@
 
         row.slots.forEach(function (slot, idx) {
           var o = normalizeSlotEntry(slot);
-          var label = o.end ? o.start + "–" + o.end : o.start;
+          var startKey = slotStartKey(slot);
+          var endTime = o.end || slotEndResolved(row.slots, idx);
+          var label = o.start + "–" + endTime;
+          if (o.category) label += " · " + o.category;
+          var bookingCount = getBookingCount(row.id, startKey);
+          if (bookingCount > 0) label += " (" + bookingCount + "/" + MAX_BOOKINGS_PER_SLOT + ")";
+
           var wrap = document.createElement("span");
           wrap.className = "published-chip";
+          wrap.setAttribute("data-start-key", startKey);
           wrap.appendChild(document.createTextNode(label + " "));
+
+          var editBtn = document.createElement("button");
+          editBtn.type = "button";
+          editBtn.className = "published-chip-edit";
+          editBtn.setAttribute("aria-label", "Edit published session " + label);
+          editBtn.textContent = "Edit";
+          editBtn.addEventListener(
+            "click",
+            (function (sk) {
+              return function () {
+                startEditPublishedSlot(sk);
+              };
+            })(startKey)
+          );
+          wrap.appendChild(editBtn);
 
           var rm = document.createElement("button");
           rm.type = "button";
+          rm.className = "published-chip-remove";
           rm.setAttribute("aria-label", "Remove published session " + label);
           rm.textContent = "×";
           rm.addEventListener(
@@ -1081,6 +1245,178 @@
           wrap.appendChild(rm);
           publishedSlotsEl.appendChild(wrap);
         });
+
+        if (editingSlotStartKey) {
+          var stillThere = row.slots.some(function (s) {
+            return slotStartKey(s) === editingSlotStartKey;
+          });
+          if (!stillThere) cancelEditPublishedSlot();
+          else {
+            publishedSlotsEl.querySelectorAll(".published-chip").forEach(function (chip) {
+              chip.classList.toggle("is-editing", chip.getAttribute("data-start-key") === editingSlotStartKey);
+            });
+          }
+        }
+      }
+
+      function findRowForSelectedDate(rows) {
+        if (!selectedDateISO) return null;
+        for (var i = 0; i < rows.length; i++) {
+          if (rows[i].date === selectedDateISO) return { index: i, row: rows[i] };
+        }
+        return null;
+      }
+
+      function setEditSlotMsg(text, kind) {
+        if (!editSlotMsg) return;
+        editSlotMsg.textContent = text || "";
+        editSlotMsg.className = "msg" + (kind ? " " + kind : "");
+      }
+
+      function cancelEditPublishedSlot() {
+        editingSlotStartKey = "";
+        if (editSlotPanel) editSlotPanel.hidden = true;
+        setEditSlotMsg("", "");
+        publishedSlotsEl.querySelectorAll(".published-chip.is-editing").forEach(function (chip) {
+          chip.classList.remove("is-editing");
+        });
+      }
+
+      function startEditPublishedSlot(startKey) {
+        var found = findRowForSelectedDate(loadSlots());
+        if (!found || !found.row.slots) return;
+
+        var slot = null;
+        var slotIndex = -1;
+        for (var i = 0; i < found.row.slots.length; i++) {
+          if (slotStartKey(found.row.slots[i]) === startKey) {
+            slot = found.row.slots[i];
+            slotIndex = i;
+            break;
+          }
+        }
+        if (!slot || slotIndex === -1) return;
+
+        var o = normalizeSlotEntry(slot);
+        var endTime = o.end || slotEndResolved(found.row.slots, slotIndex);
+        editingSlotStartKey = startKey;
+        editTimeStart.value = o.start;
+        editTimeEnd.value = endTime;
+        if (editSlotCategory) editSlotCategory.value = o.category || "";
+        editSlotPanel.hidden = false;
+
+        var count = getBookingCount(found.row.id, startKey);
+        if (editSlotHint) {
+          editSlotHint.textContent =
+            count > 0
+              ? count +
+                " booking" +
+                (count === 1 ? "" : "s") +
+                " on this session. Changing the start time will move those bookings to the new time."
+              : "Update the time window or category, then save.";
+        }
+
+        publishedSlotsEl.querySelectorAll(".published-chip").forEach(function (chip) {
+          chip.classList.toggle("is-editing", chip.getAttribute("data-start-key") === startKey);
+        });
+        setEditSlotMsg("", "");
+        editSlotPanel.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+
+      function slotLabelForStart(slots, startKey) {
+        for (var i = 0; i < slots.length; i++) {
+          if (slotStartKey(slots[i]) === startKey) return slotRangeLabel(slots, i);
+        }
+        return startKey;
+      }
+
+      function migrateSlotBookings(sectionId, oldStartKey, newStartKey, newCategory, slots) {
+        var oldK = bookingMapKey(sectionId, oldStartKey);
+        var newK = bookingMapKey(sectionId, newStartKey);
+        if (oldK !== newK) {
+          var omap = loadBookingMap();
+          if (typeof omap[oldK] === "number") {
+            omap[newK] = (typeof omap[newK] === "number" ? omap[newK] : 0) + omap[oldK];
+            delete omap[oldK];
+            saveBookingMap(omap);
+          }
+        }
+
+        var timeLabel = slotLabelForStart(slots, newStartKey);
+        var details = loadBookingsDetail();
+        var changed = false;
+        details.forEach(function (b) {
+          if (b.sectionId !== sectionId) return;
+          if (normalizeTimeValue(String(b.startTime || "")) !== oldStartKey) return;
+          b.startTime = newStartKey;
+          if (newCategory) b.category = newCategory;
+          if (timeLabel) b.timeLabel = timeLabel;
+          changed = true;
+        });
+        if (changed) saveBookingsDetail(details);
+      }
+
+      function updatePublishedSlot(oldStartKey, newEntry) {
+        var found = findRowForSelectedDate(loadSlots());
+        if (!found) return { ok: false, reason: "No sessions for this day." };
+
+        var row = found.row;
+        var slotIndex = -1;
+        for (var j = 0; j < (row.slots || []).length; j++) {
+          if (slotStartKey(row.slots[j]) === oldStartKey) {
+            slotIndex = j;
+            break;
+          }
+        }
+        if (slotIndex === -1) return { ok: false, reason: "Session not found." };
+
+        var norm = normalizeSlotEntry(newEntry);
+        if (!norm.start || !norm.end) return { ok: false, reason: "Pick both start and end times." };
+        if (!isValidSlotCategory(norm.category)) {
+          return { ok: false, reason: "Select a category: Student Pilot or ATC." };
+        }
+        if (timeToMinutes(norm.end) <= timeToMinutes(norm.start)) {
+          return { ok: false, reason: "End time must be after start time." };
+        }
+
+        for (var k = 0; k < row.slots.length; k++) {
+          if (k === slotIndex) continue;
+          if (slotStartKey(row.slots[k]) === norm.start) {
+            return { ok: false, reason: "Another session already starts at " + norm.start + "." };
+          }
+        }
+
+        var next = loadSlots().slice();
+        var copy = { id: row.id, date: row.date, title: row.title, slots: row.slots.slice() };
+        copy.slots[slotIndex] = serializeSlot(norm);
+        copy.slots = sortSlotEntries(copy.slots.map(normalizeSlotEntry))
+          .map(serializeSlot)
+          .filter(Boolean);
+        next[found.index] = copy;
+
+        migrateSlotBookings(row.id, oldStartKey, norm.start, norm.category, copy.slots);
+        saveSlots(next);
+        return { ok: true };
+      }
+
+      function saveEditedPublishedSlot() {
+        if (!editingSlotStartKey) return;
+        setEditSlotMsg("", "");
+
+        var normS = normalizeTimeValue(editTimeStart.value);
+        var normE = normalizeTimeValue(editTimeEnd.value);
+        var normCat = editSlotCategory ? normalizeCategory(editSlotCategory.value) : "";
+        var res = updatePublishedSlot(editingSlotStartKey, { start: normS, end: normE, category: normCat });
+        if (!res.ok) {
+          setEditSlotMsg(res.reason, "error");
+          return;
+        }
+
+        cancelEditPublishedSlot();
+        renderPublishedForSelectedDay();
+        renderAdminCalendar();
+        renderBookingTabs();
+        setMsg("Session updated.", "ok");
       }
 
       function removePublishedSlotAtIndex(slotIndex) {
@@ -1097,6 +1433,9 @@
         if (ri === -1) return;
         var row = rows[ri];
         if (!row.slots || slotIndex < 0 || slotIndex >= row.slots.length) return;
+
+        var removedStart = slotStartKey(row.slots[slotIndex]);
+        if (editingSlotStartKey === removedStart) cancelEditPublishedSlot();
 
         var next = rows.slice();
         var copy = { id: row.id, date: row.date, title: row.title, slots: row.slots.slice() };
@@ -1116,8 +1455,13 @@
         setMsg("", "");
         var normS = normalizeTimeValue(addTimeStart.value);
         var normE = normalizeTimeValue(addTimeEnd.value);
+        var normCat = slotCategoryInput ? normalizeCategory(slotCategoryInput.value) : "";
         if (!normS || !normE) {
           setMsg("Pick both start and end times.", "error");
+          return;
+        }
+        if (!isValidSlotCategory(normCat)) {
+          setMsg("Select a category: Student Pilot or ATC.", "error");
           return;
         }
         if (timeToMinutes(normE) <= timeToMinutes(normS)) {
@@ -1125,10 +1469,10 @@
           return;
         }
         var before = pendingChips.querySelectorAll(".time-chip").length;
-        var added = addPendingSlot(normS, normE);
+        var added = addPendingSlot(normS, normE, normCat);
         var after = pendingChips.querySelectorAll(".time-chip").length;
         if (after > before && added) {
-          setMsg("Added " + normS + "–" + normE + ".", "ok");
+          setMsg("Added " + normS + "–" + normE + " · " + normCat + ".", "ok");
         } else {
           setMsg("That session is already in the list.", "error");
         }
@@ -1186,6 +1530,20 @@
           setMsg("Cleared sessions.", "ok");
         });
 
+        if (bookingUserSearchInput) {
+          bookingUserSearchInput.addEventListener("input", function () {
+            bookingSearchQuery = bookingUserSearchInput.value.trim();
+            if (bookingTabDate) renderBookingPanelForDate(bookingTabDate);
+          });
+        }
+
+        if (bookingCategoryFilterSelect) {
+          bookingCategoryFilterSelect.addEventListener("change", function () {
+            bookingCategoryFilter = bookingCategoryFilterSelect.value;
+            if (bookingTabDate) renderBookingPanelForDate(bookingTabDate);
+          });
+        }
+
         form.addEventListener("submit", function (e) {
           e.preventDefault();
           setMsg("", "");
@@ -1215,9 +1573,26 @@
           renderAdminCalendar();
         });
 
+        if (btnSaveEdit) {
+          btnSaveEdit.addEventListener("click", saveEditedPublishedSlot);
+        }
+        if (btnCancelEdit) {
+          btnCancelEdit.addEventListener("click", cancelEditPublishedSlot);
+        }
+        [editTimeStart, editTimeEnd].forEach(function (el) {
+          if (!el) return;
+          el.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              saveEditedPublishedSlot();
+            }
+          });
+        });
+
         btnClearDay.addEventListener("click", function () {
           if (!selectedDateISO) return;
           if (!confirm("Remove every published session for this day?")) return;
+          cancelEditPublishedSlot();
           var next = loadSlots().filter(function (r) {
             return r.date !== selectedDateISO;
           });
@@ -1230,7 +1605,12 @@
         var btnPurgePast = document.getElementById("btn-purge-past");
         if (btnPurgePast) {
           btnPurgePast.addEventListener("click", function () {
-            if (!confirm("Delete all slots, bookings, and counts for dates before today?")) return;
+            if (
+              !confirm(
+                "Delete published slots and slot counts for dates before today?\n\nBooking records will be kept so each email's 2-session lifetime limit stays correct. Delete individual bookings to restore sessions."
+              )
+            )
+              return;
             var result = purgePastDateData();
             setMsg(purgePastDateDataMessage(result), result.hadChanges ? "ok" : "");
           });

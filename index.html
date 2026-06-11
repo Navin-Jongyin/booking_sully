@@ -12,8 +12,8 @@
       <header class="card-header">
         <h1>Book Your Interview</h1>
         <p>
-          Pick a date, choose one available time slot, then confirm. Each email may book up to 2 sessions total, and at
-          most one per calendar day.
+          Pick a date, choose one available time slot, then confirm. Each email may book up to 2 sessions in total
+          (lifetime, including past dates), and at most one per calendar day.
         </p>
       </header>
 
@@ -57,12 +57,19 @@
           />
           <span class="error-text" role="alert"></span>
         </div>
+
+        <div class="form-group form-group--category" data-field="category" id="category-field-group">
+          <label>Category</label>
+          <p class="hint" id="category-hint">Select Student Pilot or ATC to see available dates.</p>
+          <div class="category-filter" id="category-filter" role="group" aria-label="Select category"></div>
+          <span class="error-text" role="alert"></span>
+        </div>
           </div>
 
           <div class="booking-block booking-block--schedule">
         <div class="form-group" data-field="date">
           <label id="cal-label">Interview date</label>
-          <p class="hint" id="cal-hint">Green = spots left. Red = sessions exist but every slot is full (5 bookings each). Grey = no sessions.</p>
+          <p class="hint" id="cal-hint">Select a category first. Dates stay grey until then; green = open, red = full.</p>
           <div
             class="calendar"
             id="calendar"
@@ -92,7 +99,7 @@
         <div class="form-group" data-field="section" id="section-field-group">
           <label>Time slots for this day</label>
           <p class="hint" id="section-hint">
-            Pick one time window. Each option shows spots used out of 5.
+            Choose one time window. Each option shows spots used out of 5.
           </p>
           <div class="session-shell">
             <div class="section-list" id="section-list" aria-labelledby="section-hint"></div>
